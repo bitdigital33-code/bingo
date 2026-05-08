@@ -1,0 +1,9 @@
+{
+  "name": "Bingo Familiar Premium",
+  "short_name": "Bingo Premium",
+  "display": "standalone",
+  "background_color": "#07131d",
+  "theme_color": "#07131d",
+  "start_url": "/login",
+  "icons": []
+}

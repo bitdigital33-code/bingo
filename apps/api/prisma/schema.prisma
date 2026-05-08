@@ -1,0 +1,220 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MemberRole {
+  owner
+  admin
+  operator
+}
+
+enum MatchStatus {
+  draft
+  live
+  paused
+  completed
+}
+
+enum DrawEventType {
+  draw
+  correction
+  revert
+}
+
+enum PrizePattern {
+  single_line
+  double_line
+  full_house
+}
+
+enum ThemeKey {
+  natal
+  cassino
+  neon
+  junina
+  infantil
+}
+
+model Tenant {
+  id           String        @id @default(cuid())
+  name         String
+  slug         String        @unique
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  memberships  Membership[]
+  rooms        Room[]
+  themes       ThemePreset[]
+  auditLogs    AuditLog[]
+}
+
+model User {
+  id           String        @id @default(cuid())
+  name         String
+  email        String        @unique
+  passwordHash String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  memberships  Membership[]
+  auditLogs    AuditLog[]
+}
+
+model Membership {
+  id        String     @id @default(cuid())
+  tenantId  String
+  userId    String
+  role      MemberRole
+  createdAt DateTime   @default(now())
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@index([tenantId, role])
+}
+
+model Room {
+  id                 String          @id @default(cuid())
+  tenantId           String
+  name               String
+  joinCode           String          @unique
+  theme              ThemeKey
+  allowAutoMark      Boolean         @default(true)
+  allowManualMark    Boolean         @default(true)
+  maxCardsPerPlayer  Int             @default(3)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  tenant             Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  matches            Match[]
+  playerSessions     PlayerSession[]
+  auditLogs          AuditLog[]
+}
+
+model Match {
+  id             String         @id @default(cuid())
+  roomId         String
+  status         MatchStatus    @default(draft)
+  startedAt      DateTime?
+  pausedAt       DateTime?
+  endedAt        DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  room           Room           @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  prizeRounds    PrizeRound[]
+  drawEvents     DrawEvent[]
+  cardAssignments CardAssignment[]
+  winClaims      WinClaim[]
+
+  @@index([roomId, status])
+}
+
+model PrizeRound {
+  id          String        @id @default(cuid())
+  matchId     String
+  label       String
+  pattern     PrizePattern
+  order       Int
+  prize       String
+  completedAt DateTime?
+  createdAt   DateTime      @default(now())
+  match       Match         @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, order])
+}
+
+model PlayerSession {
+  id          String           @id @default(cuid())
+  roomId       String
+  name         String
+  avatar       String
+  token        String          @unique
+  autoMark     Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  room         Room            @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  assignments  CardAssignment[]
+  claims       WinClaim[]
+
+  @@index([roomId, createdAt])
+}
+
+model BingoCard {
+  id           String           @id @default(cuid())
+  serial       String           @unique
+  matrixJson   Json
+  createdAt    DateTime         @default(now())
+  assignments  CardAssignment[]
+}
+
+model CardAssignment {
+  id              String         @id @default(cuid())
+  matchId         String
+  playerSessionId String
+  bingoCardId     String
+  createdAt       DateTime       @default(now())
+  match           Match          @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  playerSession   PlayerSession  @relation(fields: [playerSessionId], references: [id], onDelete: Cascade)
+  bingoCard       BingoCard      @relation(fields: [bingoCardId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, bingoCardId])
+  @@index([matchId, playerSessionId])
+}
+
+model DrawEvent {
+  id              String         @id @default(cuid())
+  matchId         String
+  letter          String
+  value           Int
+  display         String
+  type            DrawEventType
+  sequence        Int
+  correctedFromId String?
+  actorUserId     String?
+  createdAt       DateTime       @default(now())
+  match           Match          @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([matchId, sequence])
+}
+
+model WinClaim {
+  id              String         @id @default(cuid())
+  matchId         String
+  playerSessionId String
+  roundId         String?
+  status          String         @default("pending")
+  createdAt       DateTime       @default(now())
+  match           Match          @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  playerSession   PlayerSession  @relation(fields: [playerSessionId], references: [id], onDelete: Cascade)
+
+  @@index([matchId, createdAt])
+}
+
+model ThemePreset {
+  id          String    @id @default(cuid())
+  tenantId    String?
+  key         ThemeKey
+  label       String
+  accent      String
+  ambient     String
+  createdAt   DateTime  @default(now())
+  tenant      Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, key])
+}
+
+model AuditLog {
+  id         String    @id @default(cuid())
+  tenantId    String
+  roomId      String?
+  userId      String?
+  action      String
+  payloadJson Json?
+  createdAt   DateTime  @default(now())
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  room        Room?     @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+}

@@ -1,0 +1,44 @@
+{
+  "name": "@bingo/web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint src --ext ts,tsx",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@bingo/contracts": "file:../../packages/contracts",
+    "@bingo/ui": "file:../../packages/ui",
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.23.24",
+    "lucide-react": "^0.542.0",
+    "qrcode.react": "^4.2.0",
+    "react": "^19.2.0",
+    "react-confetti": "^6.4.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.9.3",
+    "socket.io-client": "^4.8.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react-swc": "^4.1.0",
+    "autoprefixer": "^10.4.21",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.0",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.4.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.18",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.46.2",
+    "vite": "^8.0.10",
+    "vitest": "^4.0.3"
+  },
+  "packageManager": "npm@10.9.2"
+}

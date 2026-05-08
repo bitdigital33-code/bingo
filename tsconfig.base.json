@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "baseUrl": ".",
+    "paths": {
+      "@bingo/contracts": [
+        "packages/contracts/src/index.ts"
+      ],
+      "@bingo/contracts/*": [
+        "packages/contracts/src/*"
+      ],
+      "@bingo/ui": [
+        "packages/ui/src/index.ts"
+      ],
+    "@bingo/ui/*": [
+        "packages/ui/src/*"
+      ]
+    },
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true
+  }
+}

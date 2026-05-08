@@ -1,0 +1,40 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "resolvePackageJsonExports": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2023",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": ".",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strictNullChecks": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": true,
+    "strictBindCallApply": true,
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "@bingo/contracts": [
+        "../../packages/contracts/src/index.ts"
+      ],
+      "@bingo/contracts/*": [
+        "../../packages/contracts/src/*"
+      ]
+    }
+  },
+  "include": [
+    "src",
+    "test",
+    "prisma",
+    "../../packages/contracts/src"
+  ]
+}
