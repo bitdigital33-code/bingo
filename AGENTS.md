@@ -1,51 +1,51 @@
 # AGENTS.md
 
-## Mission
+## Missao
 
-Continue building `Bingo Familiar Premium` as a premium multi-tenant SaaS for real-world family bingo events.
+Continuar o desenvolvimento do `Bingo Familiar Premium` como um SaaS multi-tenant premium para eventos reais de bingo em familia.
 
-This repository is already scaffolded and operational.
-Do not recreate the project from scratch.
-Extend the current monorepo and preserve the existing architecture.
+Este repositorio ja esta estruturado e funcional.
+Nao recrie o projeto do zero.
+Evolua o monorepo atual e preserve a arquitetura existente.
 
-## Product Context
+## Contexto Do Produto
 
-- The bingo globe is physical and manual.
-- The system is the digital control panel, validation engine, player experience, and TV/projection experience.
-- The product must feel premium, cinematic, simple for families, and easy for older players.
-- Primary language is `pt-BR`.
+- O globo de bingo e fisico e manual.
+- O sistema funciona como painel digital, motor de validacao, experiencia do jogador e modo TV/telao.
+- O produto deve parecer premium, cinematografico, simples para familias e facil para idosos.
+- O idioma principal e `pt-BR`.
 
-## Current Repository State
+## Estado Atual Do Repositorio
 
-- Monorepo with:
-  - `apps/api` -> `NestJS + Fastify + Socket.IO + Prisma + BullMQ + Redis bridge`
+- Monorepo com:
+  - `apps/api` -> `NestJS + Fastify + Socket.IO + Prisma + BullMQ + bridge Redis`
   - `apps/web` -> `React + Vite + Tailwind + Framer Motion`
-  - `packages/contracts` -> shared DTOs and snapshots
-  - `packages/ui` -> shared design system
-- Backend supports two persistence modes:
-  - `prisma` for real PostgreSQL persistence
-  - `demo` for in-memory fallback
-- Real Prisma persistence is already wired for:
+  - `packages/contracts` -> DTOs e snapshots compartilhados
+  - `packages/ui` -> design system compartilhado
+- O backend suporta dois modos de persistencia:
+  - `prisma` para persistencia real em PostgreSQL
+  - `demo` para fallback em memoria
+- A persistencia Prisma real ja esta conectada para:
   - tenants
-  - users and memberships
-  - rooms
-  - matches
-  - prize rounds
-  - player sessions
-  - cards and assignments
-  - draw events
-- Demo and Prisma modes should both keep working.
-- Seed creates a real demo room:
-  - room code: `NATAL26`
-  - admin login: `admin@bingo.local`
-  - password: `bingo123`
+  - usuarios e memberships
+  - salas
+  - partidas
+  - rodadas de premio
+  - sessoes de jogadores
+  - cartelas e atribuicoes
+  - eventos de sorteio
+- Os modos `demo` e `prisma` devem continuar funcionando.
+- O seed cria uma sala demo real:
+  - codigo da sala: `NATAL26`
+  - login admin: `admin@bingo.local`
+  - senha: `bingo123`
 
-## First Rule
+## Primeira Regra
 
-Before changing anything, inspect the current implementation and continue from it.
-Prefer evolving existing modules instead of replacing them.
+Antes de alterar qualquer coisa, inspecione a implementacao atual e continue a partir dela.
+Prefira evoluir os modulos existentes em vez de substituir tudo.
 
-## Important Files
+## Arquivos Importantes
 
 - `README.md`
 - `apps/api/prisma/schema.prisma`
@@ -59,16 +59,16 @@ Prefer evolving existing modules instead of replacing them.
 - `apps/web/src/pages/player-room-page.tsx`
 - `apps/web/src/pages/tv-room-page.tsx`
 
-## Setup On A New Machine
+## Setup Em Uma Nova Maquina
 
-Run this from the repo root:
+Execute na raiz do repositorio:
 
 ```bash
 npm install
 npm run prisma:generate
 ```
 
-If PostgreSQL is available and configured:
+Se o PostgreSQL estiver disponivel e configurado:
 
 ```bash
 npm run prisma:push
@@ -76,52 +76,52 @@ npm run prisma:seed
 npm run dev
 ```
 
-If PostgreSQL is not available yet:
+Se o PostgreSQL ainda nao estiver disponivel:
 
 ```bash
 npm run dev
 ```
 
-In that case, use:
+Nesse caso, use:
 
 - `BINGO_PERSISTENCE=demo`
 
-## Environment Notes
+## Observacoes De Ambiente
 
-- Copy `.env.example` to a local `.env` when needed.
-- Never commit secrets.
-- `apps/api/.env` and `apps/web/.env` may exist locally on some machines, but should be treated as local-only runtime config.
-- Redis is optional for local development but should remain supported.
+- Copie `.env.example` para um `.env` local quando necessario.
+- Nunca commit segredos.
+- `apps/api/.env` e `apps/web/.env` podem existir localmente em algumas maquinas, mas devem ser tratados como configuracao local apenas.
+- Redis e opcional no desenvolvimento local, mas deve continuar suportado.
 
-## Non-Negotiable Technical Rules
+## Regras Tecnicas Nao Negociaveis
 
-- Preserve the monorepo structure.
-- Preserve DDD-style separation inside the API:
+- Preserve a estrutura de monorepo.
+- Preserve a separacao em estilo DDD dentro da API:
   - `domain`
   - `application`
   - `infrastructure`
   - `presentation`
-- Keep anti-fraud decisions on the server.
-- Keep winner detection server-side.
-- Do not move game truth into the frontend.
-- Keep WebSocket updates aligned with REST snapshots.
-- Keep the fallback `demo` mode working even while expanding `prisma`.
+- Mantenha as decisoes anti-fraude no servidor.
+- Mantenha a deteccao de vencedores no servidor.
+- Nao mova a verdade do jogo para o frontend.
+- Mantenha as atualizacoes de WebSocket alinhadas com snapshots REST.
+- Mantenha o modo `demo` funcionando mesmo com a expansao do modo `prisma`.
 
-## Non-Negotiable Product Rules
+## Regras De Produto Nao Negociaveis
 
-- Keep the premium visual direction.
-- Keep UX friendly for elderly and family audiences.
-- Keep large buttons, readable type, and high-contrast support.
-- Keep the TV mode optimized for projector and Smart TV usage.
-- Keep the playful social layer:
-  - near-win alerts
-  - hype messages
-  - announcements
-  - celebration states
+- Preserve a direcao visual premium.
+- Preserve a UX amigavel para idosos e familias.
+- Preserve botoes grandes, tipografia legivel e suporte a alto contraste.
+- Preserve o modo TV otimizado para projetor e Smart TV.
+- Preserve a camada social divertida:
+  - alertas de quase bingo
+  - mensagens de hype
+  - anuncios
+  - estados de comemoracao
 
-## Current Verified State
+## Estado Ja Verificado
 
-The following were already validated before this file was created:
+O seguinte ja foi validado antes deste arquivo:
 
 - `npm run build:contracts`
 - `npm run build:api`
@@ -132,36 +132,36 @@ The following were already validated before this file was created:
 - `npm run test`
 - `npm run test:e2e -w apps/api -- --runInBand`
 
-Prisma smoke test also worked with:
+O smoke test do Prisma tambem funcionou com:
 
 - `persistenceMode=prisma`
-- room `NATAL26`
-- `8` seeded players
+- sala `NATAL26`
+- `8` jogadores seedados
 
-## Next Recommended Work
+## Proximo Trabalho Recomendado
 
-Implement real persistence for the remaining operational SaaS trail:
+Implementar persistencia real para a trilha operacional que ainda falta no SaaS:
 
-1. Persist `win claims` in Prisma.
-2. Persist `audit logs` for admin actions, draw corrections, reverts, pauses, resumes, and room changes.
-3. Persist match-operation history for later analytics and support.
-4. Expose that history cleanly in admin-facing APIs.
+1. Persistir `win claims` no Prisma.
+2. Persistir `audit logs` para acoes do admin, correcoes de sorteio, reversoes, pausas, retomadas e alteracoes de sala.
+3. Persistir historico operacional das partidas para analytics e suporte futuros.
+4. Expor esse historico com clareza nas APIs administrativas.
 
-## Guardrails For The Next Agent
+## Guardrails Para A Proxima IA
 
-- Do not remove or bypass existing tests.
-- Add or update tests when changing game rules or persistence.
-- Do not replace Prisma with another ORM.
-- Do not rewrite the frontend shell unnecessarily.
-- Do not downgrade the UI into a generic dashboard.
-- Do not commit credentials or machine-specific secrets.
+- Nao remova nem burle os testes existentes.
+- Adicione ou atualize testes ao alterar regras do jogo ou persistencia.
+- Nao troque Prisma por outro ORM.
+- Nao reescreva a shell do frontend sem necessidade.
+- Nao degrade a UI para um dashboard generico.
+- Nao commit credenciais nem segredos especificos de maquina.
 
-## Definition Of Good Continuation
+## Definicao De Boa Continuacao
 
-A good next step is one that:
+Uma boa continuacao e aquela que:
 
-- strengthens real persistence
-- improves reliability
-- preserves the premium experience
-- keeps demo mode intact
-- ships with tests
+- fortalece a persistencia real
+- melhora a confiabilidade
+- preserva a experiencia premium
+- mantem o modo demo intacto
+- entrega junto com testes
