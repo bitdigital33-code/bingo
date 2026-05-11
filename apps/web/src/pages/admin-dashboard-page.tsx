@@ -247,7 +247,7 @@ export function AdminDashboardPage() {
 
   async function handleDeleteRoom(roomToDelete: RoomSnapshot) {
     const confirmed = window.confirm(
-      `Excluir a sala "${roomToDelete.roomName}"? Esta acao remove a sala, partida, jogadores, cartelas vinculadas e sorteios dessa sala.`,
+      `Excluir a sala "${roomToDelete.roomName}"? Esta acao remove a sala, partida, jogadores, cartelas vinculadas e sorteios dessa sala. Se for a ultima sala, o painel volta para a criacao do zero.`,
     );
     if (!confirmed) {
       return;
@@ -400,6 +400,49 @@ export function AdminDashboardPage() {
     );
   }
 
+  async function handleCloseAndCreateRoom() {
+    const confirmed = window.confirm(
+      `Encerrar "${currentRoom.roomName}" e abrir uma sala nova limpa? A sala atual continua no historico ate voce excluir.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setActionBusy("Nova sala");
+    setError(undefined);
+    try {
+      if (currentMatch.status !== "completed") {
+        const closed = await api.endMatch(
+          session.accessToken,
+          currentMatch.matchId,
+        );
+        applyRoomSnapshot(closed.room);
+      }
+
+      const response = await api.createRoom(session.accessToken, {
+        name: buildFreshRoomName(),
+        theme: currentRoom.theme,
+        maxCardsPerPlayer: currentRoom.maxCardsPerPlayer,
+        allowAutoMark: currentRoom.allowAutoMark,
+        allowManualMark: currentRoom.allowManualMark,
+      });
+
+      applyRoomSnapshot(response.room);
+      setSelectedRoomCode(response.room.roomCode);
+      setHistoryItems([]);
+      void refreshHistory(response.room.roomId);
+    } catch (reason) {
+      setError(
+        readErrorMessage(
+          reason,
+          "Nao foi possivel encerrar e abrir uma sala nova.",
+        ),
+      );
+    } finally {
+      setActionBusy(undefined);
+    }
+  }
+
   return (
     <>
       <main className="noise-layer no-print min-h-screen px-4 py-4 md:px-6 md:py-6">
@@ -411,23 +454,40 @@ export function AdminDashboardPage() {
           currentDraw={currentMatch.currentDraw?.display}
         />
 
-        <div className="mx-auto max-w-[1600px] space-y-6">
-          <GlassPanel className="rounded-[34px] p-5 md:p-6">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-              <div>
-                <p className="m-0 text-[0.72rem] uppercase tracking-[0.3em] text-[var(--muted-text)]">
-                  Painel do anfitriao
-                </p>
-                <h1 className="m-0 mt-3 font-display text-[clamp(2.6rem,5vw,4.8rem)] leading-[0.92] text-gradient">
-                  Bingo Familiar Premium
+        <div className="mx-auto max-w-[1680px] space-y-5">
+          <section className="rounded-lg border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.10),rgba(255,255,255,0.035))] px-5 py-5 shadow-2xl shadow-black/20 md:px-6">
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-md border border-[var(--accent)]/30 bg-[var(--accent)]/12 px-2.5 py-1 text-[0.66rem] font-bold uppercase tracking-[0.18em] text-[var(--accent)]">
+                    Painel admin
+                  </span>
+                  <span className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-[0.66rem] font-bold uppercase tracking-[0.18em] text-[var(--muted-text)]">
+                    {matchStatusLabel(currentMatch.status)}
+                  </span>
+                  <span className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-[0.66rem] font-bold uppercase tracking-[0.18em] text-[var(--muted-text)]">
+                    Sala {currentRoom.roomCode}
+                  </span>
+                </div>
+                <h1 className="m-0 mt-3 truncate font-display text-[clamp(2.1rem,4vw,3.5rem)] leading-none text-[var(--text-color)]">
+                  {currentRoom.roomName}
                 </h1>
-                <p className="m-0 mt-3 max-w-2xl text-sm leading-7 text-[var(--muted-text)]">
-                  {auth.user.name} comandando {currentRoom.roomName}. Sorteio
-                  manual, cartelas digitais, quase-bingo, narrador automatico e
-                  telao sincronizado em tempo real.
+                <p className="m-0 mt-3 max-w-3xl text-sm leading-6 text-[var(--muted-text)]">
+                  {auth.user.name} no comando. Use esta tela como mesa de
+                  operacao: sorteio manual, jogadores, TV, premios e historico
+                  ficam separados por prioridade.
                 </p>
               </div>
-              <div className="flex flex-wrap gap-3">
+
+              <div className="flex flex-wrap justify-start gap-2 xl:max-w-[32rem] xl:justify-end">
+                <Button
+                  className="gap-2"
+                  disabled={Boolean(actionBusy)}
+                  onClick={() => void handleCloseAndCreateRoom()}
+                >
+                  <Plus className="h-4 w-4" />
+                  Encerrar e nova sala
+                </Button>
                 <HighContrastToggle
                   active={highContrast}
                   onToggle={() => setHighContrast((current) => !current)}
@@ -449,44 +509,96 @@ export function AdminDashboardPage() {
                 </Button>
               </div>
             </div>
-          </GlassPanel>
 
-          <div className="grid gap-6 xl:grid-cols-[0.9fr_1.5fr_0.92fr]">
-            <aside className="space-y-5">
-              <GlassPanel className="rounded-[30px] p-5">
-                <p className="m-0 text-[0.68rem] uppercase tracking-[0.22em] text-[var(--muted-text)]">
-                  Salas
-                </p>
-                <div className="mt-4 space-y-3">
+            <div className="mt-5 grid gap-3 md:grid-cols-4">
+              <AdminMetricTile
+                label="Bolas"
+                value={String(currentMatch.drawnNumbers.length).padStart(
+                  2,
+                  "0",
+                )}
+                detail={currentMatch.currentDraw?.display ?? "Sem sorteio"}
+              />
+              <AdminMetricTile
+                label="Jogadores"
+                value={String(currentMatch.playersOnline)}
+                detail={`${currentMatch.players.length} participantes`}
+              />
+              <AdminMetricTile
+                label="Premio"
+                value={
+                  currentMatch.prizeRounds.find(
+                    (entry) => entry.id === currentMatch.currentPrizeRoundId,
+                  )?.label ?? "Encerrado"
+                }
+                detail="Rodada ativa"
+              />
+              <AdminMetricTile
+                label="Telao"
+                value={currentMatch.endedAt ? "Fechado" : "Pronto"}
+                detail={
+                  currentMatch.tvStandby
+                    ? "Em espera"
+                    : currentMatch.recentDrawsVisible
+                      ? "Ultimos numeros"
+                      : "Sincronizado"
+                }
+              />
+            </div>
+          </section>
+
+          <div className="grid min-w-0 gap-5 xl:grid-cols-[21rem_minmax(0,1fr)_24rem]">
+            <aside className="min-w-0 space-y-4 xl:sticky xl:top-5 xl:self-start">
+              <GlassPanel className="rounded-lg p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="m-0 text-[0.68rem] uppercase tracking-[0.2em] text-[var(--muted-text)]">
+                      Salas
+                    </p>
+                    <p className="m-0 mt-1 text-xs text-[var(--muted-text)]">
+                      Troque, crie ou feche operacoes.
+                    </p>
+                  </div>
+                  <Button
+                    className="px-3 py-2 text-xs"
+                    variant="ghost"
+                    onClick={() => void refreshRooms()}
+                  >
+                    Atualizar
+                  </Button>
+                </div>
+                <div className="mt-4 space-y-2">
                   {rooms.map((entry) => (
                     <button
                       key={entry.roomId}
-                      className={`w-full rounded-[24px] border px-4 py-4 text-left transition ${
+                      className={`w-full rounded-lg border px-3.5 py-3 text-left transition ${
                         selectedRoomCode === entry.roomCode
-                          ? "border-transparent bg-white text-slate-950"
-                          : "border-white/8 bg-white/5 text-[var(--text-color)]"
+                          ? "border-[var(--accent)]/40 bg-[var(--accent)]/14 text-[var(--text-color)] shadow-lg shadow-[var(--accent)]/10"
+                          : "border-white/8 bg-white/5 text-[var(--text-color)] hover:border-white/18 hover:bg-white/8"
                       }`}
                       onClick={() => setSelectedRoomCode(entry.roomCode)}
                     >
-                      <p className="m-0 font-display text-lg">
-                        {entry.roomName}
-                      </p>
-                      <p className="m-0 mt-1 text-xs uppercase tracking-[0.2em] opacity-70">
-                        {entry.roomCode}
-                      </p>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="m-0 truncate text-sm font-bold">
+                            {entry.roomName}
+                          </p>
+                          <p className="m-0 mt-1 text-[0.66rem] uppercase tracking-[0.18em] opacity-70">
+                            {entry.roomCode}
+                          </p>
+                        </div>
+                        <span className="shrink-0 rounded-md bg-white/8 px-2 py-1 text-[0.62rem] uppercase tracking-[0.14em] opacity-80">
+                          {matchStatusLabel(entry.match.status)}
+                        </span>
+                      </div>
                     </button>
                   ))}
                 </div>
                 {error ? (
-                  <p className="m-0 mt-3 text-sm text-rose-300">{error}</p>
+                  <p className="m-0 mt-3 rounded-lg border border-rose-300/20 bg-rose-300/10 px-3 py-2 text-sm text-rose-100">
+                    {error}
+                  </p>
                 ) : null}
-                <Button
-                  className="mt-4 w-full"
-                  variant="secondary"
-                  onClick={() => void refreshRooms()}
-                >
-                  Atualizar salas
-                </Button>
               </GlassPanel>
 
               <ThemeSwitcher
@@ -511,7 +623,6 @@ export function AdminDashboardPage() {
               <AdminRoomSettingsPanel
                 room={currentRoom}
                 disabled={Boolean(actionBusy)}
-                canDelete={rooms.length > 1}
                 onUpdate={(payload) =>
                   runRoomCommand("Configuracao", () =>
                     api.updateRoom(
@@ -526,7 +637,7 @@ export function AdminDashboardPage() {
               <QRJoinPanel room={currentRoom} />
             </aside>
 
-            <section className="space-y-5">
+            <section className="min-w-0 space-y-5">
               <AdminCommandOverview match={currentMatch} />
               <DrawSpotlight draw={currentMatch.currentDraw} />
               <AnnouncementBanner cues={currentMatch.announcements} />
@@ -571,7 +682,7 @@ export function AdminDashboardPage() {
                 }
               />
 
-              <GlassPanel className="space-y-4 rounded-[30px] p-5">
+              <GlassPanel className="space-y-4 rounded-lg p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="m-0 text-[0.68rem] uppercase tracking-[0.22em] text-[var(--muted-text)]">
@@ -592,7 +703,11 @@ export function AdminDashboardPage() {
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {currentMatch.status !== "live" ? (
+                    {currentMatch.status === "completed" ? (
+                      <Button variant="secondary" disabled>
+                        Partida encerrada
+                      </Button>
+                    ) : currentMatch.status !== "live" ? (
                       <Button
                         variant="secondary"
                         disabled={Boolean(actionBusy)}
@@ -658,6 +773,13 @@ export function AdminDashboardPage() {
                         ? "Encerrada"
                         : "Encerrar"}
                     </Button>
+                    <Button
+                      variant="secondary"
+                      disabled={Boolean(actionBusy)}
+                      onClick={() => void handleCloseAndCreateRoom()}
+                    >
+                      Nova sala limpa
+                    </Button>
                   </div>
                 </div>
 
@@ -665,7 +787,7 @@ export function AdminDashboardPage() {
               </GlassPanel>
             </section>
 
-            <aside className="space-y-5">
+            <aside className="min-w-0 space-y-4 xl:sticky xl:top-5 xl:self-start">
               <ProximityTicker
                 entries={deferredProximity}
                 onBroadcastAlert={(entry) =>
@@ -870,7 +992,7 @@ function AdminCreateRoomPanel({
   }
 
   return (
-    <GlassPanel className="rounded-[30px] p-5">
+    <GlassPanel className="rounded-lg p-5">
       <form className="space-y-4" onSubmit={handleSubmit}>
         <div>
           <p className="m-0 text-[0.68rem] uppercase tracking-[0.22em] text-[var(--muted-text)]">
@@ -895,7 +1017,7 @@ function AdminCreateRoomPanel({
                 name: event.target.value,
               }))
             }
-            className="w-full rounded-[22px] border border-white/10 bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--text-color)] outline-none"
+            className="w-full rounded-lg border border-white/10 bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--text-color)] outline-none"
             placeholder="Bingo de sexta"
           />
         </label>
@@ -912,7 +1034,7 @@ function AdminCreateRoomPanel({
                 theme: event.target.value as ThemeKey,
               }))
             }
-            className="w-full rounded-[22px] border border-white/10 bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--text-color)] outline-none"
+            className="w-full rounded-lg border border-white/10 bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--text-color)] outline-none"
           >
             {THEME_OPTIONS.map((theme) => (
               <option key={theme.key} value={theme.key}>
@@ -1047,7 +1169,7 @@ function AdminPrintableCardsPanel({
   }
 
   return (
-    <GlassPanel className="rounded-[30px] p-5">
+    <GlassPanel className="rounded-lg p-5">
       <form className="space-y-4" onSubmit={handleSubmit}>
         <div>
           <p className="m-0 text-[0.68rem] uppercase tracking-[0.22em] text-[var(--muted-text)]">
@@ -1072,7 +1194,7 @@ function AdminPrintableCardsPanel({
                 title: event.target.value,
               }))
             }
-            className="w-full rounded-[22px] border border-white/10 bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--text-color)] outline-none"
+            className="w-full rounded-lg border border-white/10 bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--text-color)] outline-none"
           />
         </label>
 
@@ -1091,7 +1213,7 @@ function AdminPrintableCardsPanel({
                 quantity: Number(event.target.value),
               }))
             }
-            className="w-full rounded-[22px] border border-white/10 bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--text-color)] outline-none"
+            className="w-full rounded-lg border border-white/10 bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--text-color)] outline-none"
           />
         </label>
 
@@ -1160,7 +1282,7 @@ function AdminPrintableCardsPanel({
         </div>
         {verification ? (
           <div
-            className={`mt-3 rounded-[22px] border px-4 py-3 text-sm ${
+            className={`mt-3 rounded-lg border px-4 py-3 text-sm ${
               verification.authentic
                 ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
                 : "border-rose-300/25 bg-rose-300/10 text-rose-100"
@@ -1515,7 +1637,7 @@ function AdminCommandOverview({ match }: { match: RoomSnapshot["match"] }) {
   );
 
   return (
-    <GlassPanel className="rounded-[30px] border-white/6 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-5">
+    <GlassPanel className="rounded-lg border-white/6 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="m-0 text-[0.68rem] uppercase tracking-[0.22em] text-[var(--muted-text)]">
@@ -1585,6 +1707,30 @@ function AdminCommandOverview({ match }: { match: RoomSnapshot["match"] }) {
   );
 }
 
+function AdminMetricTile({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="min-w-0 border-l border-white/10 pl-3">
+      <p className="m-0 text-[0.62rem] font-bold uppercase tracking-[0.18em] text-[var(--muted-text)]">
+        {label}
+      </p>
+      <p className="m-0 mt-1 truncate font-display text-2xl leading-none text-[var(--text-color)]">
+        {value}
+      </p>
+      <p className="m-0 mt-1 truncate text-xs text-[var(--muted-text)]">
+        {detail}
+      </p>
+    </div>
+  );
+}
+
 function OverviewCard({
   icon,
   label,
@@ -1597,7 +1743,7 @@ function OverviewCard({
   detail: string;
 }) {
   return (
-    <div className="rounded-[24px] border border-white/8 bg-white/5 px-4 py-4">
+    <div className="rounded-lg border border-white/8 bg-white/5 px-4 py-4">
       <div className="flex items-center gap-2 text-[0.65rem] uppercase tracking-[0.18em] text-[var(--muted-text)]">
         {icon}
         <span>{label}</span>
@@ -1624,7 +1770,7 @@ function AdminStageMomentsPanel({
   onSetStageMoment: (payload: StageMomentRequest) => Promise<void>;
 }) {
   return (
-    <GlassPanel className="rounded-[30px] p-5">
+    <GlassPanel className="rounded-lg p-5">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="m-0 text-[0.68rem] uppercase tracking-[0.22em] text-[var(--muted-text)]">
@@ -1672,7 +1818,7 @@ function AdminStageMomentsPanel({
       </div>
 
       {room.match.stageMoment ? (
-        <div className="mt-4 rounded-[22px] border border-amber-200/15 bg-amber-300/10 px-4 py-3">
+        <div className="mt-4 rounded-lg border border-amber-200/15 bg-amber-300/10 px-4 py-3">
           <p className="m-0 text-[0.65rem] uppercase tracking-[0.18em] text-amber-100">
             Momento no ar
           </p>
@@ -1686,7 +1832,7 @@ function AdminStageMomentsPanel({
       ) : null}
 
       {room.match.recentDrawsVisible ? (
-        <div className="mt-4 rounded-[22px] border border-emerald-200/15 bg-emerald-300/10 px-4 py-3">
+        <div className="mt-4 rounded-lg border border-emerald-200/15 bg-emerald-300/10 px-4 py-3">
           <p className="m-0 text-[0.65rem] uppercase tracking-[0.18em] text-emerald-100">
             Ultimos numeros no ar
           </p>
@@ -1695,7 +1841,7 @@ function AdminStageMomentsPanel({
           </p>
         </div>
       ) : room.match.endedAt ? (
-        <div className="mt-4 rounded-[22px] border border-rose-200/15 bg-rose-300/10 px-4 py-3">
+        <div className="mt-4 rounded-lg border border-rose-200/15 bg-rose-300/10 px-4 py-3">
           <p className="m-0 text-[0.65rem] uppercase tracking-[0.18em] text-rose-100">
             Telao fechado
           </p>
@@ -1704,7 +1850,7 @@ function AdminStageMomentsPanel({
           </p>
         </div>
       ) : room.match.tvStandby ? (
-        <div className="mt-4 rounded-[22px] border border-cyan-200/15 bg-cyan-300/10 px-4 py-3">
+        <div className="mt-4 rounded-lg border border-cyan-200/15 bg-cyan-300/10 px-4 py-3">
           <p className="m-0 text-[0.65rem] uppercase tracking-[0.18em] text-cyan-100">
             Telao em espera
           </p>
@@ -1729,7 +1875,7 @@ function AdminStageMomentsPanel({
                 message: preset.message,
               })
             }
-            className="group rounded-[24px] border border-white/8 bg-white/5 px-4 py-4 text-left transition hover:border-white/18 hover:bg-white/8 disabled:opacity-40"
+            className="group rounded-lg border border-white/8 bg-white/5 px-4 py-4 text-left transition hover:border-white/18 hover:bg-white/8 disabled:opacity-40"
           >
             <div className="flex items-center justify-between gap-3">
               <span className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--text-color)]">
@@ -1789,23 +1935,21 @@ type RoomSettingsPatch = Partial<
 function AdminRoomSettingsPanel({
   room,
   disabled,
-  canDelete,
   onUpdate,
   onDelete,
 }: {
   room: RoomSnapshot;
   disabled: boolean;
-  canDelete: boolean;
   onUpdate: (payload: RoomSettingsPatch) => Promise<void>;
   onDelete: () => void;
 }) {
   return (
-    <GlassPanel className="rounded-[30px] p-5">
+    <GlassPanel className="rounded-lg p-5">
       <p className="m-0 text-[0.68rem] uppercase tracking-[0.22em] text-[var(--muted-text)]">
         Regras da sala
       </p>
       <div className="mt-4 space-y-3">
-        <div className="rounded-[22px] border border-white/8 bg-white/5 p-3">
+        <div className="rounded-lg border border-white/8 bg-white/5 p-3">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="m-0 text-sm font-semibold text-[var(--text-color)]">
@@ -1826,7 +1970,7 @@ function AdminRoomSettingsPanel({
             </Button>
           </div>
         </div>
-        <div className="rounded-[22px] border border-white/8 bg-white/5 p-3">
+        <div className="rounded-lg border border-white/8 bg-white/5 p-3">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="m-0 text-sm font-semibold text-[var(--text-color)]">
@@ -1849,7 +1993,7 @@ function AdminRoomSettingsPanel({
             </Button>
           </div>
         </div>
-        <div className="rounded-[22px] border border-white/8 bg-white/5 p-3">
+        <div className="rounded-lg border border-white/8 bg-white/5 p-3">
           <p className="m-0 text-sm font-semibold text-[var(--text-color)]">
             Cartelas por jogador
           </p>
@@ -1869,7 +2013,7 @@ function AdminRoomSettingsPanel({
           </div>
         </div>
       </div>
-      <div className="mt-4 rounded-[22px] border border-rose-200/15 bg-rose-300/10 p-3">
+      <div className="mt-4 rounded-lg border border-rose-200/15 bg-rose-300/10 p-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="m-0 text-sm font-semibold text-rose-100">
@@ -1882,7 +2026,7 @@ function AdminRoomSettingsPanel({
           <Button
             type="button"
             variant="ghost"
-            disabled={disabled || !canDelete}
+            disabled={disabled}
             className="gap-2 px-3 py-2 text-xs"
             onClick={onDelete}
           >
@@ -1890,11 +2034,6 @@ function AdminRoomSettingsPanel({
             Excluir
           </Button>
         </div>
-        {!canDelete ? (
-          <p className="m-0 mt-2 text-xs text-[var(--muted-text)]">
-            Crie outra sala antes de excluir a unica sala da organizacao.
-          </p>
-        ) : null}
       </div>
     </GlassPanel>
   );
@@ -1912,7 +2051,7 @@ function AdminPlayersPanel({
   onRemove: (player: PlayerSessionDto) => Promise<void>;
 }) {
   return (
-    <GlassPanel className="rounded-[30px] p-5">
+    <GlassPanel className="rounded-lg p-5">
       <div className="flex items-center justify-between gap-3">
         <p className="m-0 text-[0.68rem] uppercase tracking-[0.22em] text-[var(--muted-text)]">
           Jogadores
@@ -1923,7 +2062,7 @@ function AdminPlayersPanel({
       </div>
       <div className="mt-4 max-h-[28rem] space-y-3 overflow-auto pr-1">
         {players.length === 0 ? (
-          <p className="m-0 rounded-[22px] border border-white/8 bg-white/5 px-4 py-4 text-sm text-[var(--muted-text)]">
+          <p className="m-0 rounded-lg border border-white/8 bg-white/5 px-4 py-4 text-sm text-[var(--muted-text)]">
             Nenhum jogador entrou nesta sala ainda.
           </p>
         ) : null}
@@ -1936,7 +2075,7 @@ function AdminPlayersPanel({
           return (
             <div
               key={player.id}
-              className="rounded-[22px] border border-white/8 bg-white/5 p-3"
+              className="rounded-lg border border-white/8 bg-white/5 p-3"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -2017,7 +2156,7 @@ function AdminPrizeControlPanel({
   }
 
   return (
-    <GlassPanel className="rounded-[30px] p-5">
+    <GlassPanel className="rounded-lg p-5">
       <form className="space-y-4" onSubmit={handleSave}>
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -2059,7 +2198,7 @@ function AdminPrizeControlPanel({
         </div>
 
         {match.prizeShowcase ? (
-          <div className="rounded-[22px] border border-emerald-300/20 bg-emerald-300/10 px-4 py-3">
+          <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 px-4 py-3">
             <p className="m-0 text-[0.65rem] uppercase tracking-[0.18em] text-emerald-100">
               No telão agora
             </p>
@@ -2077,7 +2216,7 @@ function AdminPrizeControlPanel({
           {drafts.map((round, index) => (
             <div
               key={round.id}
-              className="rounded-[22px] border border-white/8 bg-white/5 p-3"
+              className="rounded-lg border border-white/8 bg-white/5 p-3"
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="rounded-full bg-white/10 px-2.5 py-1 text-[0.62rem] uppercase tracking-[0.16em] text-[var(--muted-text)]">
@@ -2105,7 +2244,7 @@ function AdminPrizeControlPanel({
                       }),
                     )
                   }
-                  className="w-full rounded-[18px] border border-white/10 bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--text-color)] outline-none"
+                  className="w-full rounded-md border border-white/10 bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--text-color)] outline-none"
                 />
                 <textarea
                   value={round.prize}
@@ -2118,7 +2257,7 @@ function AdminPrizeControlPanel({
                       }),
                     )
                   }
-                  className="w-full resize-none rounded-[18px] border border-white/10 bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--text-color)] outline-none"
+                  className="w-full resize-none rounded-md border border-white/10 bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--text-color)] outline-none"
                 />
                 <div className="grid gap-2 sm:grid-cols-[1fr_5.5rem]">
                   <select
@@ -2135,7 +2274,7 @@ function AdminPrizeControlPanel({
                         }),
                       );
                     }}
-                    className="w-full rounded-[18px] border border-white/10 bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--text-color)] outline-none"
+                    className="w-full rounded-md border border-white/10 bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--text-color)] outline-none"
                   >
                     {PRIZE_RULE_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -2156,7 +2295,7 @@ function AdminPrizeControlPanel({
                         }),
                       )
                     }
-                    className="w-full rounded-[18px] border border-white/10 bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--text-color)] outline-none disabled:opacity-40"
+                    className="w-full rounded-md border border-white/10 bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--text-color)] outline-none disabled:opacity-40"
                   />
                 </div>
                 <p className="m-0 text-xs text-[var(--muted-text)]">
@@ -2233,7 +2372,7 @@ function AdminPrizeCommandPanel({
   }
 
   return (
-    <GlassPanel className="rounded-[30px] p-5">
+    <GlassPanel className="rounded-lg p-5">
       <form className="space-y-4" onSubmit={handleSave}>
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -2301,7 +2440,7 @@ function AdminPrizeCommandPanel({
         </div>
 
         {match.prizeShowcase ? (
-          <div className="rounded-[22px] border border-emerald-300/20 bg-emerald-300/10 px-4 py-3">
+          <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 px-4 py-3">
             <p className="m-0 text-[0.65rem] uppercase tracking-[0.18em] text-emerald-100">
               No telao agora
             </p>
@@ -2319,7 +2458,7 @@ function AdminPrizeCommandPanel({
           {drafts.map((round, index) => (
             <div
               key={round.clientKey}
-              className="rounded-[24px] border border-white/8 bg-white/5 p-4"
+              className="rounded-lg border border-white/8 bg-white/5 p-4"
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="rounded-full bg-white/10 px-2.5 py-1 text-[0.62rem] uppercase tracking-[0.16em] text-[var(--muted-text)]">
@@ -2372,7 +2511,7 @@ function AdminPrizeCommandPanel({
                       }),
                     )
                   }
-                  className="w-full rounded-[18px] border border-white/10 bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--text-color)] outline-none"
+                  className="w-full rounded-md border border-white/10 bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--text-color)] outline-none"
                 />
                 <textarea
                   value={round.prize}
@@ -2385,7 +2524,7 @@ function AdminPrizeCommandPanel({
                       }),
                     )
                   }
-                  className="w-full resize-none rounded-[18px] border border-white/10 bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--text-color)] outline-none"
+                  className="w-full resize-none rounded-md border border-white/10 bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--text-color)] outline-none"
                 />
                 <div className="grid gap-2 sm:grid-cols-[1fr_6.2rem]">
                   <select
@@ -2402,7 +2541,7 @@ function AdminPrizeCommandPanel({
                         }),
                       );
                     }}
-                    className="w-full rounded-[18px] border border-white/10 bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--text-color)] outline-none"
+                    className="w-full rounded-md border border-white/10 bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--text-color)] outline-none"
                   >
                     {PRIZE_RULE_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -2423,7 +2562,7 @@ function AdminPrizeCommandPanel({
                         }),
                       )
                     }
-                    className="w-full rounded-[18px] border border-white/10 bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--text-color)] outline-none disabled:opacity-40"
+                    className="w-full rounded-md border border-white/10 bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--text-color)] outline-none disabled:opacity-40"
                   />
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2453,7 +2592,7 @@ function AdminHistoryPanel({
   onRefresh: () => void;
 }) {
   return (
-    <GlassPanel className="rounded-[30px] p-5">
+    <GlassPanel className="rounded-lg p-5">
       <div className="flex items-center justify-between gap-3">
         <p className="m-0 text-[0.68rem] uppercase tracking-[0.22em] text-[var(--muted-text)]">
           Registro operacional
@@ -2469,7 +2608,7 @@ function AdminHistoryPanel({
       </div>
       <div className="mt-4 max-h-[24rem] space-y-3 overflow-auto pr-1">
         {items.length === 0 ? (
-          <p className="m-0 rounded-[22px] border border-white/8 bg-white/5 px-4 py-4 text-sm text-[var(--muted-text)]">
+          <p className="m-0 rounded-lg border border-white/8 bg-white/5 px-4 py-4 text-sm text-[var(--muted-text)]">
             {loading
               ? "Carregando trilha operacional..."
               : "Nenhum evento administrativo registrado ainda."}
@@ -2478,7 +2617,7 @@ function AdminHistoryPanel({
         {items.map((item) => (
           <div
             key={`${item.type}-${item.id}`}
-            className="rounded-[22px] border border-white/8 bg-white/5 px-4 py-3"
+            className="rounded-lg border border-white/8 bg-white/5 px-4 py-3"
           >
             <div className="flex items-center justify-between gap-3">
               <span className="rounded-full bg-white/10 px-2.5 py-1 text-[0.62rem] uppercase tracking-[0.16em] text-[var(--muted-text)]">
@@ -2568,6 +2707,15 @@ function formatHistoryDate(value: string) {
     minute: "2-digit",
     second: "2-digit",
   }).format(date);
+}
+
+function buildFreshRoomName() {
+  return `Nova sala ${new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date())}`;
 }
 
 function readErrorMessage(reason: unknown, fallback: string) {

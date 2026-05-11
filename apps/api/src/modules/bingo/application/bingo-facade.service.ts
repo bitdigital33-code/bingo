@@ -505,12 +505,6 @@ export class BingoFacadeService {
     roomId: string,
   ): Promise<DeleteRoomResponseDto> {
     const room = await this.getTenantRoom(user, roomId);
-    const tenantRooms = await this.store.getRoomsForTenant(user.tenantId);
-    if (tenantRooms.length <= 1) {
-      throw new BadRequestException(
-        'Crie outra sala antes de excluir a unica sala da organizacao.',
-      );
-    }
 
     await this.auditAdmin(user, {
       room,
