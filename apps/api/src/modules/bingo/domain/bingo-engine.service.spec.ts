@@ -99,6 +99,9 @@ describe('BingoEngineService', () => {
       roomId: room.id,
       status: 'live',
       startedAt: new Date().toISOString(),
+      prizeShowcaseVisible: false,
+      stageMomentVisible: false,
+      recentDrawsVisible: false,
       prizeRounds: rounds,
       drawEvents: [
         {

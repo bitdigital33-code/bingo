@@ -1,4 +1,5 @@
 import type { AuthResponseDto } from '@bingo/contracts';
+import type { ManualMarksState } from './manual-card';
 
 const AUTH_KEY = 'bingo-premium-auth';
 
@@ -35,4 +36,21 @@ export function loadPlayerIdentity(roomCode: string) {
     return undefined;
   }
   return JSON.parse(raw) as StoredPlayerIdentity;
+}
+
+export function saveManualMarks(roomCode: string, playerId: string, marks: ManualMarksState) {
+  window.localStorage.setItem(manualMarksKey(roomCode, playerId), JSON.stringify(marks));
+}
+
+export function loadManualMarks(roomCode: string, playerId: string) {
+  const raw = window.localStorage.getItem(manualMarksKey(roomCode, playerId));
+  if (!raw) {
+    return {};
+  }
+
+  return JSON.parse(raw) as ManualMarksState;
+}
+
+function manualMarksKey(roomCode: string, playerId: string) {
+  return `bingo-manual-marks:${roomCode}:${playerId}`;
 }

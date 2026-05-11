@@ -114,6 +114,98 @@ select {
   border-radius: 999px;
 }
 
+.crop-mark {
+  position: absolute;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-color: #020617;
+  border-style: solid;
+}
+
+.crop-mark-tl {
+  left: -1px;
+  top: -1px;
+  border-left-width: 2px;
+  border-top-width: 2px;
+}
+
+.crop-mark-tr {
+  right: -1px;
+  top: -1px;
+  border-right-width: 2px;
+  border-top-width: 2px;
+}
+
+.crop-mark-bl {
+  bottom: -1px;
+  left: -1px;
+  border-bottom-width: 2px;
+  border-left-width: 2px;
+}
+
+.crop-mark-br {
+  bottom: -1px;
+  right: -1px;
+  border-bottom-width: 2px;
+  border-right-width: 2px;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: auto;
+  }
+
+  body {
+    background: #fff !important;
+    color: #020617 !important;
+  }
+
+  .no-print,
+  .print-actions {
+    display: none !important;
+  }
+
+  .print-studio-shell {
+    position: static !important;
+    inset: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+    padding: 0 !important;
+  }
+
+  .print-area {
+    max-width: none !important;
+    width: 100% !important;
+  }
+
+  .print-page {
+    box-shadow: none !important;
+    min-height: auto !important;
+    width: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .print-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .print-card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

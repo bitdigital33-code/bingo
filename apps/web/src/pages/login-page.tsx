@@ -8,19 +8,19 @@ import { loadAuth, saveAuth } from '@/lib/session';
 export function LoginPage() {
   const navigate = useNavigate();
   const existingAuth = useMemo(() => loadAuth(), []);
-  const [mode, setMode] = useState<'login' | 'tenant'>('login');
+  const [mode, setMode] = useState<'login' | 'tenant'>(existingAuth ? 'login' : 'tenant');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
   const [loginForm, setLoginForm] = useState({
-    email: existingAuth?.user.email ?? 'admin@bingo.local',
-    password: 'bingo123',
+    email: existingAuth?.user.email ?? '',
+    password: '',
   });
   const [tenantForm, setTenantForm] = useState({
-    tenantName: 'Bingo da Familia Silva',
-    slug: 'bingo-familia-silva',
-    ownerName: 'Ana Silva',
-    ownerEmail: 'ana@familia.local',
-    password: 'bingo123',
+    tenantName: '',
+    slug: '',
+    ownerName: '',
+    ownerEmail: '',
+    password: '',
   });
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
@@ -57,9 +57,6 @@ export function LoginPage() {
 
   return (
     <main className="noise-layer relative min-h-screen overflow-hidden px-6 py-10">
-      <div className="floating-orb left-[5%] top-[8%] h-72 w-72 bg-[var(--glow-color)]" />
-      <div className="floating-orb bottom-[6%] right-[8%] h-80 w-80 bg-[rgba(255,122,89,0.18)]" />
-
       <div className="mx-auto grid min-h-[calc(100vh-5rem)] max-w-7xl items-center gap-8 lg:grid-cols-[1.05fr_0.95fr]">
         <section>
           <p className="m-0 text-sm uppercase tracking-[0.34em] text-[var(--muted-text)]">
@@ -99,7 +96,7 @@ export function LoginPage() {
             <form className="mt-6 space-y-4" onSubmit={handleLogin}>
               <h2 className="m-0 font-display text-3xl text-[var(--text-color)]">Painel do anfitriao</h2>
               <p className="m-0 text-sm text-[var(--muted-text)]">
-                Demo pronta: <strong>admin@bingo.local</strong> / <strong>bingo123</strong>
+                Entre com a conta criada para a sua organizacao.
               </p>
               <Field
                 label="Email"
@@ -120,6 +117,9 @@ export function LoginPage() {
           ) : (
             <form className="mt-6 space-y-4" onSubmit={handleCreateTenant}>
               <h2 className="m-0 font-display text-3xl text-[var(--text-color)]">Criar tenant SaaS</h2>
+              <p className="m-0 text-sm text-[var(--muted-text)]">
+                Primeiro uso: crie a organizacao e o anfitriao principal.
+              </p>
               <Field
                 label="Organizacao"
                 value={tenantForm.tenantName}

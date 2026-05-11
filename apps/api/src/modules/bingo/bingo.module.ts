@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { AnalyticsQueueService } from './infrastructure/analytics-queue.service';
 import { BingoStoreService } from './infrastructure/bingo-store.service';
-import { DemoStoreService } from './infrastructure/demo-store.service';
 import { PrismaBingoStoreService } from './infrastructure/prisma-bingo-store.service';
 import { PrismaService } from './infrastructure/prisma.service';
 import { RedisBridgeService } from './infrastructure/redis-bridge.service';
@@ -41,7 +40,6 @@ import { AdminAuthGuard } from './presentation/admin-auth.guard';
     BingoCardFactory,
     BingoEngineService,
     BingoFacadeService,
-    DemoStoreService,
     PrismaBingoStoreService,
     PrismaService,
     RedisBridgeService,

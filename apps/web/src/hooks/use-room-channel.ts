@@ -1,11 +1,15 @@
 import { startTransition, useEffect, useEffectEvent, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { RoomSnapshot } from '@bingo/contracts';
-
-const SOCKET_URL = (import.meta.env.VITE_SOCKET_URL as string | undefined) ?? 'http://localhost:4000';
+import { SOCKET_URL } from '@/lib/env';
 
 function isRoomSnapshot(value: unknown): value is RoomSnapshot {
-  return Boolean(value && typeof value === 'object' && 'roomCode' in value && 'match' in value);
+  return Boolean(
+    value &&
+    typeof value === 'object' &&
+    'roomCode' in value &&
+    'match' in value,
+  );
 }
 
 export function useRoomChannel(
@@ -32,6 +36,7 @@ export function useRoomChannel(
 
     let active = true;
     setLoading(true);
+    setRoom(undefined);
 
     void loader()
       .then((snapshot) => {
@@ -44,11 +49,14 @@ export function useRoomChannel(
         if (!active) {
           return;
         }
-        setError(reason instanceof Error ? reason.message : 'Falha ao carregar sala.');
+        setError(
+          reason instanceof Error ? reason.message : 'Falha ao carregar sala.',
+        );
         setLoading(false);
       });
 
     const socket = io(SOCKET_URL, {
+      autoConnect: false,
       transports: ['websocket'],
       query: {
         roomCode,
@@ -66,12 +74,24 @@ export function useRoomChannel(
     socket.on('draw.corrected', handler);
     socket.on('match.status.changed', handler);
     socket.on('player.presence.updated', handler);
+    socket.on('prize.rounds.updated', handler);
+    socket.on('prize.showcase.changed', handler);
+    socket.on('stage.moment.changed', handler);
+    socket.on('tv.recent-draws.changed', handler);
+    socket.on('tv.presentation.reset', handler);
+
+    const connectTimer = window.setTimeout(() => {
+      if (active) {
+        socket.connect();
+      }
+    }, 0);
 
     return () => {
       active = false;
+      window.clearTimeout(connectTimer);
       socket.close();
     };
-  }, [applySnapshot, loader, roomCode]);
+  }, [loader, roomCode]);
 
   return {
     room,

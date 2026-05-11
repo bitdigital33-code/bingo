@@ -110,7 +110,18 @@ export function isValidDraw(letter: BingoLetter, value: number) {
 export function countMissingForPattern(
   marks: boolean[][],
   pattern: PrizePattern,
+  targetMarks?: number,
 ): number {
+  if (pattern === 'marked_count') {
+    const markedNumbers = marks.flatMap((row, rowIndex) =>
+      row.map((marked, colIndex) =>
+        rowIndex === FREE_CENTER.row && colIndex === FREE_CENTER.col ? false : marked,
+      ),
+    ).filter(Boolean).length;
+
+    return Math.max((targetMarks ?? 3) - markedNumbers, 0);
+  }
+
   if (pattern === 'full_house') {
     let missing = 0;
     for (const row of marks) {

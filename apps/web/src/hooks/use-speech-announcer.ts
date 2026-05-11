@@ -17,17 +17,25 @@ export function useSpeechAnnouncer(cues: AnnouncementCue[], enabled: boolean) {
     synth.speak(utterance);
   });
 
+  const cancel = useEffectEvent(() => {
+    window.speechSynthesis?.cancel();
+  });
+
   useEffect(() => {
     if (!enabled) {
+      cancel();
       return;
     }
 
     const cue = cues[0];
     if (!cue || cue.id === seen.current) {
+      if (!cue) {
+        cancel();
+      }
       return;
     }
 
     seen.current = cue.id;
     speak(cue.speechText);
-  }, [cues, enabled, speak]);
+  }, [cancel, cues, enabled, speak]);
 }

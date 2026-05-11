@@ -7,11 +7,18 @@ import type {
   PlayerCardView,
   PlayerSessionDto,
   PrizePattern,
+  PrizeShowcaseDto,
   ProximityEntry,
   RoomSnapshot,
+  StageMomentDto,
   WinnerResult,
 } from '@bingo/contracts';
-import { buildDrawDisplay, countMissingForPattern, FREE_CENTER, isValidDraw } from './bingo-rules';
+import {
+  buildDrawDisplay,
+  countMissingForPattern,
+  FREE_CENTER,
+  isValidDraw,
+} from './bingo-rules';
 import type {
   StoredCard,
   StoredDrawEvent,
@@ -32,7 +39,9 @@ export class BingoEngineService {
   replayActiveDraws(events: StoredDrawEvent[]) {
     const active = new Map<string, StoredDrawEvent>();
 
-    for (const event of [...events].sort((left, right) => left.sequence - right.sequence)) {
+    for (const event of [...events].sort(
+      (left, right) => left.sequence - right.sequence,
+    )) {
       if (event.type === 'draw') {
         active.set(event.id, event);
         continue;
@@ -47,7 +56,9 @@ export class BingoEngineService {
       }
     }
 
-    return [...active.values()].sort((left, right) => left.sequence - right.sequence);
+    return [...active.values()].sort(
+      (left, right) => left.sequence - right.sequence,
+    );
   }
 
   buildRoomSnapshot(params: {
@@ -61,16 +72,44 @@ export class BingoEngineService {
     const activeDraws = this.replayActiveDraws(match.drawEvents);
     const projection = this.resolveRounds(match, players, activeDraws);
     const activeRound = projection.activeRound;
+    const prizeShowcase = this.buildPrizeShowcase({
+      ...match,
+      prizeRounds: projection.prizeRounds,
+    });
+    const stageMoment = this.buildStageMoment(match);
     const drawnSet = new Set(activeDraws.map((draw) => draw.display));
     const playersView = players.map((player) =>
-      this.toPlayerSessionView(player, drawnSet, activeRound?.pattern ?? 'full_house'),
+      this.toPlayerSessionView(
+        player,
+        drawnSet,
+        activeRound?.pattern ?? 'full_house',
+        activeRound?.targetMarks,
+      ),
     );
-    const proximityBoard = this.buildProximityBoard(players, drawnSet, activeRound?.pattern);
+    const proximityBoard = this.buildProximityBoard(
+      players,
+      drawnSet,
+      activeRound?.pattern,
+      activeRound?.targetMarks,
+    );
     const currentDraw = activeDraws.at(-1);
-    const announcements = this.buildAnnouncements(currentDraw, proximityBoard, projection.lastWinner);
+    const announcements = this.buildAnnouncements(
+      currentDraw,
+      proximityBoard,
+      projection.lastWinner,
+    );
+    const tvStandby = this.shouldUseTvStandby({
+      match,
+      currentDraw,
+      prizeShowcaseVisible: Boolean(prizeShowcase),
+      stageMomentVisible: Boolean(stageMoment),
+      recentDrawsVisible: match.recentDrawsVisible,
+    });
 
     const status =
-      projection.allRoundsCompleted && match.status !== 'draft' ? 'completed' : match.status;
+      projection.allRoundsCompleted && match.status !== 'draft'
+        ? 'completed'
+        : match.status;
 
     const matchSnapshot: MatchSnapshot = {
       matchId: match.id,
@@ -80,8 +119,13 @@ export class BingoEngineService {
       roomName: room.name,
       tenantName: tenant.name,
       activeTheme: room.theme,
-      currentPrizeRoundId: activeRound?.id ?? match.prizeRounds.at(-1)?.id ?? '',
+      currentPrizeRoundId:
+        activeRound?.id ?? match.prizeRounds.at(-1)?.id ?? '',
       prizeRounds: projection.prizeRounds,
+      prizeShowcase,
+      stageMoment,
+      recentDrawsVisible: match.recentDrawsVisible,
+      tvStandby,
       currentDraw,
       recentDraws: activeDraws.slice(-10).reverse(),
       drawnNumbers: activeDraws.map((draw) => ({
@@ -96,6 +140,7 @@ export class BingoEngineService {
       lastWinner: projection.lastWinner,
       startedAt: match.startedAt,
       pausedAt: match.pausedAt,
+      endedAt: match.endedAt,
     };
 
     return {
@@ -117,7 +162,9 @@ export class BingoEngineService {
     display: string,
     ignoredDrawId?: string,
   ) {
-    return activeDraws.some((draw) => draw.display === display && draw.id !== ignoredDrawId);
+    return activeDraws.some(
+      (draw) => draw.display === display && draw.id !== ignoredDrawId,
+    );
   }
 
   private resolveRounds(
@@ -142,7 +189,12 @@ export class BingoEngineService {
 
       while (roundIndex < match.prizeRounds.length) {
         const round = match.prizeRounds[roundIndex];
-        const winners = this.findWinners(players, drawnSet, round.pattern);
+        const winners = this.findWinners(
+          players,
+          drawnSet,
+          round.pattern,
+          round.targetMarks,
+        );
 
         if (winners.length === 0) {
           break;
@@ -172,20 +224,109 @@ export class BingoEngineService {
       prizeRounds,
       lastWinner,
       activeRound: prizeRounds.find((round) => !round.completedAt),
-      allRoundsCompleted: prizeRounds.length > 0 && prizeRounds.every((round) => round.completedAt),
+      allRoundsCompleted:
+        prizeRounds.length > 0 &&
+        prizeRounds.every((round) => round.completedAt),
     };
+  }
+
+  private buildPrizeShowcase(match: StoredMatch): PrizeShowcaseDto | undefined {
+    if (!match.prizeShowcaseVisible || !match.featuredPrizeRoundId) {
+      return undefined;
+    }
+
+    const round = match.prizeRounds.find(
+      (entry) => entry.id === match.featuredPrizeRoundId,
+    );
+    if (!round) {
+      return undefined;
+    }
+
+    return {
+      visible: true,
+      roundId: round.id,
+      label: round.label,
+      pattern: round.pattern,
+      targetMarks: round.targetMarks,
+      order: round.order,
+      prize: round.prize,
+      completedAt: round.completedAt,
+    };
+  }
+
+  private buildStageMoment(match: StoredMatch): StageMomentDto | undefined {
+    if (
+      !match.stageMomentVisible ||
+      !match.stageMomentKey ||
+      !match.stageMomentTitle ||
+      !match.stageMomentMessage
+    ) {
+      return undefined;
+    }
+
+    if (
+      match.stageMomentExpiresAt &&
+      new Date(match.stageMomentExpiresAt).getTime() <= Date.now()
+    ) {
+      return undefined;
+    }
+
+    return {
+      visible: true,
+      key: match.stageMomentKey,
+      title: match.stageMomentTitle,
+      message: match.stageMomentMessage,
+      expiresAt: match.stageMomentExpiresAt,
+    };
+  }
+
+  private shouldUseTvStandby(params: {
+    match: StoredMatch;
+    currentDraw: StoredDrawEvent | undefined;
+    prizeShowcaseVisible: boolean;
+    stageMomentVisible: boolean;
+    recentDrawsVisible: boolean;
+  }) {
+    const {
+      match,
+      currentDraw,
+      prizeShowcaseVisible,
+      stageMomentVisible,
+      recentDrawsVisible,
+    } = params;
+
+    if (
+      prizeShowcaseVisible ||
+      stageMomentVisible ||
+      recentDrawsVisible ||
+      !match.tvResetAt
+    ) {
+      return false;
+    }
+
+    if (!currentDraw) {
+      return true;
+    }
+
+    return (
+      new Date(currentDraw.createdAt).getTime() <=
+      new Date(match.tvResetAt).getTime()
+    );
   }
 
   private findWinners(
     players: StoredPlayerSession[],
     drawnSet: Set<string>,
     pattern: PrizePattern,
+    targetMarks?: number,
   ): WinnerResult['winners'] {
     const winners: WinnerResult['winners'] = [];
 
     for (const player of players) {
       for (const card of player.cards) {
-        if (this.calculateMarksNeeded(card, drawnSet, pattern) === 0) {
+        if (
+          this.calculateMarksNeeded(card, drawnSet, pattern, targetMarks) === 0
+        ) {
           winners.push({
             playerSessionId: player.id,
             playerName: player.name,
@@ -203,8 +344,11 @@ export class BingoEngineService {
     player: StoredPlayerSession,
     drawnSet: Set<string>,
     activePattern: PrizePattern,
+    targetMarks?: number,
   ): PlayerSessionDto {
-    const cards = player.cards.map((card) => this.toPlayerCardView(card, drawnSet, activePattern, player));
+    const cards = player.cards.map((card) =>
+      this.toPlayerCardView(card, drawnSet, activePattern, player, targetMarks),
+    );
 
     return {
       id: player.id,
@@ -220,6 +364,7 @@ export class BingoEngineService {
     drawnSet: Set<string>,
     activePattern: PrizePattern,
     player: StoredPlayerSession,
+    targetMarks?: number,
   ): PlayerCardView {
     const cells: BingoCellDto[][] = card.cells.map((row) =>
       row.map((cell) => ({
@@ -236,7 +381,12 @@ export class BingoEngineService {
       autoMark: player.autoMark,
       serial: card.serial,
       cells,
-      marksNeeded: this.calculateMarksNeeded(card, drawnSet, activePattern),
+      marksNeeded: this.calculateMarksNeeded(
+        card,
+        drawnSet,
+        activePattern,
+        targetMarks,
+      ),
     };
   }
 
@@ -244,6 +394,7 @@ export class BingoEngineService {
     players: StoredPlayerSession[],
     drawnSet: Set<string>,
     activePattern: PrizePattern | undefined,
+    targetMarks?: number,
   ) {
     if (!activePattern) {
       return [] as ProximityEntry[];
@@ -252,10 +403,12 @@ export class BingoEngineService {
     return players
       .map((player) => {
         const distances = player.cards.map((card) =>
-          this.calculateMarksNeeded(card, drawnSet, activePattern),
+          this.calculateMarksNeeded(card, drawnSet, activePattern, targetMarks),
         );
         const best = Math.min(...distances);
-        const cardsNearWin = distances.filter((distance) => distance <= 2).length;
+        const cardsNearWin = distances.filter(
+          (distance) => distance <= 2,
+        ).length;
 
         return {
           playerSessionId: player.id,
@@ -263,7 +416,7 @@ export class BingoEngineService {
           avatar: player.avatar,
           cardsNearWin,
           distance: Math.min(best, 3) as 0 | 1 | 2 | 3,
-          message: this.buildProximityMessage(player.name, best, cardsNearWin),
+          message: this.buildProximityMessage(best, cardsNearWin),
         };
       })
       .sort((left, right) => {
@@ -314,7 +467,8 @@ export class BingoEngineService {
         id: 'crowd-rush',
         tone: 'hype',
         message: 'Disputa acirrada! Temos varios jogadores quase ganhando!',
-        speechText: 'Disputa acirrada! Tem muita gente quase fechando a cartela.',
+        speechText:
+          'Disputa acirrada! Tem muita gente quase fechando a cartela.',
         sound: 'spark',
       });
     }
@@ -322,35 +476,39 @@ export class BingoEngineService {
     return announcements.slice(0, 3);
   }
 
-  private buildProximityMessage(name: string, distance: number, cardsNearWin: number) {
+  private buildProximityMessage(distance: number, cardsNearWin: number) {
     if (distance === 0) {
-      return `${name} bateu o padrao da rodada!`;
+      return 'Uma cartela bateu o padrao da rodada!';
     }
     if (distance === 1) {
-      return `${name} falta apenas 1 numero!`;
+      return 'Falta 1 numero para uma cartela bater!';
     }
     if (distance === 2) {
-      return `${name} esta na boa com 2 numeros restantes!`;
+      return 'Faltam 2 numeros para uma cartela bater!';
     }
     if (cardsNearWin > 0) {
-      return `${name} segue na disputa com ${cardsNearWin} cartela(s) forte(s)!`;
+      return cardsNearWin === 1
+        ? '1 cartela na boa, chegando perto do bingo!'
+        : `${cardsNearWin} cartelas na boa, chegando perto do bingo!`;
     }
-    return `${name} segue no jogo e pode surpreender a qualquer momento!`;
+    return 'Uma cartela segue no jogo e pode surpreender a qualquer momento!';
   }
 
   private calculateMarksNeeded(
     card: StoredCard,
     drawnSet: Set<string>,
     pattern: PrizePattern,
+    targetMarks?: number,
   ) {
     const marks = card.cells.map((row) =>
-      row.map((cell) =>
-        cell.value === 'FREE' ||
-        (typeof cell.value === 'number' &&
-          drawnSet.has(buildDrawDisplay(cell.letter, cell.value))),
+      row.map(
+        (cell) =>
+          cell.value === 'FREE' ||
+          (typeof cell.value === 'number' &&
+            drawnSet.has(buildDrawDisplay(cell.letter, cell.value))),
       ),
     );
     marks[FREE_CENTER.row][FREE_CENTER.col] = true;
-    return countMissingForPattern(marks, pattern);
+    return countMissingForPattern(marks, pattern, targetMarks);
   }
 }

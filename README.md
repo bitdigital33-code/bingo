@@ -9,22 +9,24 @@ Bingo Familiar Premium is a multi-tenant SaaS monorepo for family events, church
 - `packages/contracts`: shared DTOs, events, snapshots, and domain types
 - `packages/ui`: shared premium design-system primitives
 
-## MVP Included
+## Included
 
 - Admin login and tenant onboarding without billing
+- Production-first PostgreSQL persistence with Prisma
+- Empty first-use seed, with no preloaded room, user, players, or draws
 - Room management and live `75-ball` bingo matches
 - Manual draw flow with correction, revert, and replay-last
 - Digital player cards with 1 to 3 cards per player
 - REST snapshots plus WebSocket synchronization
 - Near-win radar, "na boa" messaging, and proximity ranking
 - TV mode with giant QR code, current-draw spotlight, and browser voice narration
-- Demo in-memory seed data plus PostgreSQL-ready Prisma schema
+- Persistent win claims, audit logs, and administrative room history
 
 ## Workspace Layout
 
 ```text
 apps/
-  api/   -> API, bingo engine, WebSocket, Prisma, seeds
+  api/   -> API, bingo engine, WebSocket, Prisma, empty seed
   web/   -> login, admin panel, join flow, player room, TV mode
 packages/
   contracts/ -> shared contracts and snapshots
@@ -33,9 +35,19 @@ packages/
 
 ## Quick Start
 
+Start PostgreSQL first. The included Docker Compose file provides PostgreSQL and Redis:
+
+```bash
+docker compose up -d
+```
+
+Then run:
+
 ```bash
 npm install
 npm run prisma:generate
+npm run prisma:push
+npm run prisma:seed
 npm run dev
 ```
 
@@ -44,34 +56,30 @@ Local URLs:
 - API: `http://localhost:4000`
 - Web: `http://localhost:5173`
 
-Demo credentials:
+First use:
 
-- Email: `admin@bingo.local`
-- Password: `bingo123`
+- Open `/login`
+- Choose `Criar organizacao`
+- Create the first tenant and owner account
+
+## Empty Local Reset
+
+For a local development database only, this drops existing data and returns the app to a clean first-use state:
+
+```bash
+npm run prisma:reset:empty
+```
 
 ## Environment
 
-Copy `.env.example` to `.env` and adjust:
+Copy `.env.example` to `.env` when needed and adjust:
 
-- `DATABASE_URL`
-- `REDIS_URL`
+- `DATABASE_URL` required by the API
+- `REDIS_URL` optional for local development
 - `JWT_SECRET`
 - `VITE_API_URL`
 - `VITE_SOCKET_URL`
 - `WEB_BASE_URL` optional for public join links and QR codes
-
-## Optional Infra with Docker Compose
-
-```bash
-docker compose up -d
-```
-
-Services included:
-
-- PostgreSQL 16
-- Redis 7
-
-If Docker is not installed yet, the backend still runs in demo mode using in-memory storage, which is enough to explore the product and validate the main experience.
 
 ## Useful Scripts
 
@@ -80,7 +88,9 @@ npm run dev
 npm run build
 npm run test
 npm run prisma:generate
+npm run prisma:push
 npm run prisma:seed
+npm run prisma:reset:empty
 ```
 
 ## Main Endpoints
@@ -89,7 +99,9 @@ npm run prisma:seed
 - `POST /api/v1/auth/login`
 - `GET /api/v1/auth/bootstrap`
 - `POST /api/v1/rooms`
+- `GET /api/v1/rooms/:id/history`
 - `POST /api/v1/matches/:id/draws`
+- `POST /api/v1/matches/:id/claims`
 - `POST /public/rooms/:joinCode/join`
 - `GET /public/rooms/:joinCode/state`
 - `GET /public/rooms/:joinCode/tv-state`
@@ -98,4 +110,5 @@ npm run prisma:seed
 
 - The bingo globe remains physical and manual; the software acts as the digital control brain.
 - The backend recalculates projections and winners server-side for anti-fraud validation.
-- Prisma, Dockerfiles, and `docker-compose.yml` are already in the repo, while the API still supports a no-database demo mode for local validation.
+- Prisma is the only application persistence path. The previous in-memory demo fallback has been removed.
+- Redis remains optional in local development and is used only for realtime bridge/analytics support when configured.

@@ -1,12 +1,19 @@
-import type { PlayerCardView } from '@bingo/contracts';
+import type { BingoCellDto, PlayerCardView } from '@bingo/contracts';
 import { GlassPanel } from '@bingo/ui';
 
 interface BingoCardGridProps {
   card: PlayerCardView;
   large?: boolean;
+  isCellToggleable?: (cell: BingoCellDto) => boolean;
+  onCellToggle?: (cell: BingoCellDto) => void;
 }
 
-export function BingoCardGrid({ card, large }: BingoCardGridProps) {
+export function BingoCardGrid({
+  card,
+  isCellToggleable,
+  large,
+  onCellToggle,
+}: BingoCardGridProps) {
   return (
     <GlassPanel className="space-y-4 rounded-[30px] p-4 md:p-5">
       <div className="flex items-center justify-between gap-4">
@@ -35,20 +42,39 @@ export function BingoCardGrid({ card, large }: BingoCardGridProps) {
           </div>
         ))}
 
-        {card.cells.flat().map((cell) => (
-          <div
-            key={`${card.id}-${cell.row}-${cell.col}`}
-            className={`rounded-[22px] border px-1 py-4 text-center ${
-              large ? 'min-h-[5.4rem] text-2xl' : 'min-h-[4.5rem] text-xl'
-            } ${
-              cell.marked
-                ? 'border-transparent bg-[linear-gradient(135deg,rgba(255,122,89,0.85),rgba(89,255,208,0.85))] text-slate-950 shadow-[0_22px_40px_rgba(89,255,208,0.16)]'
-                : 'border-white/10 bg-white/5 text-[var(--text-color)]'
-            } flex items-center justify-center font-display font-bold`}
-          >
-            {cell.value}
-          </div>
-        ))}
+        {card.cells.flat().map((cell) => {
+          const toggleable = Boolean(onCellToggle && isCellToggleable?.(cell));
+          const className = `rounded-[22px] border px-1 py-4 text-center ${
+            large ? 'min-h-[5.4rem] text-2xl' : 'min-h-[4.5rem] text-xl'
+          } ${
+            cell.marked
+              ? 'border-transparent bg-[linear-gradient(135deg,rgba(255,122,89,0.85),rgba(89,255,208,0.85))] text-slate-950 shadow-[0_22px_40px_rgba(89,255,208,0.16)]'
+              : 'border-white/10 bg-white/5 text-[var(--text-color)]'
+          } flex w-full items-center justify-center font-display font-bold transition ${
+            toggleable ? 'cursor-pointer hover:scale-[1.02] hover:border-white/35' : ''
+          }`;
+
+          if (!card.autoMark && onCellToggle) {
+            return (
+              <button
+                key={`${card.id}-${cell.row}-${cell.col}`}
+                type="button"
+                className={className}
+                disabled={!toggleable}
+                aria-pressed={cell.marked}
+                onClick={() => onCellToggle(cell)}
+              >
+                {cell.value}
+              </button>
+            );
+          }
+
+          return (
+            <div key={`${card.id}-${cell.row}-${cell.col}`} className={className}>
+              {cell.value}
+            </div>
+          );
+        })}
       </div>
     </GlassPanel>
   );

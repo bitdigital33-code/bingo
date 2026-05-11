@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Confetti from 'react-confetti';
 
 interface CelebrationLayerProps {
@@ -8,6 +8,8 @@ interface CelebrationLayerProps {
 export function CelebrationLayer({ winnerKey }: CelebrationLayerProps) {
   const [active, setActive] = useState(false);
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const initializedRef = useRef(false);
+  const lastWinnerKeyRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     const update = () =>
@@ -22,10 +24,23 @@ export function CelebrationLayer({ winnerKey }: CelebrationLayerProps) {
   }, []);
 
   useEffect(() => {
-    if (!winnerKey) {
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      lastWinnerKeyRef.current = winnerKey;
       return;
     }
 
+    if (!winnerKey) {
+      lastWinnerKeyRef.current = undefined;
+      setActive(false);
+      return;
+    }
+
+    if (lastWinnerKeyRef.current === winnerKey) {
+      return;
+    }
+
+    lastWinnerKeyRef.current = winnerKey;
     setActive(true);
     const timer = window.setTimeout(() => setActive(false), 7000);
     return () => window.clearTimeout(timer);

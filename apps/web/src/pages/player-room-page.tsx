@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { Button, GlassPanel } from '@bingo/ui';
+import type { BingoCellDto } from '@bingo/contracts';
 import { AnnouncementBanner } from '@/components/announcement-banner';
 import { AutoMarkToggle } from '@/components/auto-mark-toggle';
 import { BingoCardGrid } from '@/components/bingo-card-grid';
@@ -10,7 +11,18 @@ import { LoadingState } from '@/components/loading-state';
 import { RecentDrawsRail } from '@/components/recent-draws-rail';
 import { WinnerOverlay } from '@/components/winner-overlay';
 import { api } from '@/lib/api';
-import { loadPlayerIdentity } from '@/lib/session';
+import {
+  loadManualMarks,
+  loadPlayerIdentity,
+  saveManualMarks,
+} from '@/lib/session';
+import {
+  buildCellKey,
+  canToggleManualCell,
+  projectManualCard,
+  seedManualMarksFromDraws,
+  type ManualMarksState,
+} from '@/lib/manual-card';
 import { useRoomChannel } from '@/hooks/use-room-channel';
 import { useThemeShell } from '@/hooks/use-theme-shell';
 
@@ -18,6 +30,9 @@ export function PlayerRoomPage() {
   const { roomCode } = useParams();
   const identity = roomCode ? loadPlayerIdentity(roomCode) : undefined;
   const [autoMark, setAutoMark] = useState(true);
+  const [manualMarks, setManualMarks] = useState<ManualMarksState>(() =>
+    roomCode && identity ? loadManualMarks(roomCode, identity.playerId) : {},
+  );
   const loader = useMemo(
     () => (roomCode ? () => api.getRoomState(roomCode) : undefined),
     [roomCode],
@@ -39,7 +54,66 @@ export function PlayerRoomPage() {
     return <Navigate to={`/join/${roomCode}`} replace />;
   }
 
-  const canClaim = player.cards.some((card) => card.marksNeeded === 0);
+  const currentRoomCode = roomCode;
+  const currentIdentity = identity;
+  const currentPlayer = player;
+  const activePattern =
+    room.match.prizeRounds.find((entry) => entry.id === room.match.currentPrizeRoundId)?.pattern ??
+    'full_house';
+  const visibleCards = player.cards.map((card) =>
+    autoMark ? { ...card, autoMark: true } : projectManualCard(card, manualMarks[card.id], activePattern),
+  );
+  const canClaim = visibleCards.some((card) => card.marksNeeded === 0);
+
+  function updateManualMarks(updater: (current: ManualMarksState) => ManualMarksState) {
+    setManualMarks((current) => {
+      const next = updater(current);
+      saveManualMarks(currentRoomCode, currentIdentity.playerId, next);
+      return next;
+    });
+  }
+
+  function handleAutoMarkChange(nextAutoMark: boolean) {
+    if (!nextAutoMark) {
+      updateManualMarks((current) => seedManualMarksFromDraws(currentPlayer.cards, current));
+    }
+
+    setAutoMark(nextAutoMark);
+  }
+
+  function handleManualCellToggle(cardId: string, cell: BingoCellDto) {
+    const sourceCell = currentPlayer.cards
+      .find((card) => card.id === cardId)
+      ?.cells[cell.row]?.[cell.col];
+
+    if (!sourceCell || !canToggleManualCell(sourceCell)) {
+      return;
+    }
+
+    const key = buildCellKey(cell.row, cell.col);
+    updateManualMarks((current) => {
+      const marks = new Set(current[cardId] ?? []);
+
+      if (marks.has(key)) {
+        marks.delete(key);
+      } else {
+        marks.add(key);
+      }
+
+      return {
+        ...current,
+        [cardId]: [...marks],
+      };
+    });
+  }
+
+  function isManualCellToggleable(cardId: string, cell: BingoCellDto) {
+    const sourceCell = currentPlayer.cards
+      .find((card) => card.id === cardId)
+      ?.cells[cell.row]?.[cell.col];
+
+    return sourceCell ? canToggleManualCell(sourceCell) : false;
+  }
 
   return (
     <main className="noise-layer min-h-screen px-4 py-5 md:px-6">
@@ -60,7 +134,7 @@ export function PlayerRoomPage() {
                 {player.avatar} {player.name}
               </h1>
             </div>
-            <AutoMarkToggle autoMark={autoMark} onChange={setAutoMark} />
+            <AutoMarkToggle autoMark={autoMark} onChange={handleAutoMarkChange} />
           </div>
         </GlassPanel>
 
@@ -77,8 +151,14 @@ export function PlayerRoomPage() {
         ) : null}
 
         <div className="space-y-4">
-          {player.cards.map((card) => (
-            <BingoCardGrid key={card.id} card={{ ...card, autoMark }} large />
+          {visibleCards.map((card) => (
+            <BingoCardGrid
+              key={card.id}
+              card={card}
+              isCellToggleable={(cell) => isManualCellToggleable(card.id, cell)}
+              large
+              onCellToggle={(cell) => handleManualCellToggle(card.id, cell)}
+            />
           ))}
         </div>
 

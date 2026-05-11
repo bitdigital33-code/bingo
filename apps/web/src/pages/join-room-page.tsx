@@ -24,7 +24,7 @@ export function JoinRoomPage() {
     () => (roomCode ? () => api.getRoomState(roomCode) : undefined),
     [roomCode],
   );
-  const { room, loading } = useRoomChannel(roomCode, loader);
+  const { room, loading, error: roomError } = useRoomChannel(roomCode, loader);
 
   useThemeShell(room?.theme, false);
 
@@ -52,8 +52,26 @@ export function JoinRoomPage() {
     }
   }
 
-  if (loading || !room) {
+  if (loading) {
     return <LoadingState label="Preparando entrada da sala" />;
+  }
+
+  if (!room) {
+    return (
+      <main className="noise-layer flex min-h-screen items-center justify-center px-6 py-8">
+        <GlassPanel className="max-w-xl rounded-[34px] p-6 text-center">
+          <p className="m-0 text-sm uppercase tracking-[0.3em] text-[var(--muted-text)]">
+            Sala indisponivel
+          </p>
+          <h1 className="m-0 mt-3 font-display text-4xl text-[var(--text-color)]">
+            Nao consegui abrir esta sala.
+          </h1>
+          <p className="m-0 mt-4 text-sm leading-6 text-[var(--muted-text)]">
+            {roomError ?? 'Confira se o celular esta na mesma rede Wi-Fi do computador.'}
+          </p>
+        </GlassPanel>
+      </main>
+    );
   }
 
   return (

@@ -1,10 +1,16 @@
 import type {
+  AdminHistoryItemDto,
+  AuditActorType,
   BingoLetter,
+  AuditLogDto,
   DrawEventDto,
   MatchStatus,
   MemberRole,
   PrizeRoundConfig,
+  StageMomentKey,
   ThemeKey,
+  WinClaimDto,
+  WinClaimStatus,
 } from '@bingo/contracts';
 
 export interface StoredTenant {
@@ -35,6 +41,15 @@ export interface StoredCard {
   id: string;
   serial: string;
   cells: StoredCardCell[][];
+  printedRoomId?: string;
+  printBatchId?: string;
+  digitalAccessCode?: string;
+  printedAt?: string;
+}
+
+export interface StoredPrintedCard extends StoredCard {
+  room: StoredRoom;
+  tenantName: string;
 }
 
 export interface StoredPlayerSession {
@@ -65,6 +80,48 @@ export interface StoredDrawEvent extends DrawEventDto {
   actorUserId?: string;
 }
 
+export interface StoredWinClaim extends WinClaimDto {
+  status: WinClaimStatus;
+}
+
+export interface StoredAuditLog extends AuditLogDto {
+  actorType: AuditActorType;
+}
+
+export interface StoredAdminHistory {
+  items: AdminHistoryItemDto[];
+  auditLogs: StoredAuditLog[];
+  winClaims: StoredWinClaim[];
+}
+
+export interface CreateWinClaimParams {
+  tenantId?: string;
+  roomId?: string;
+  matchId: string;
+  playerSessionId?: string;
+  playerName?: string;
+  roundId?: string;
+  cardId?: string;
+  triggeredByDrawId?: string;
+  status: WinClaimStatus;
+  reason?: string;
+  snapshot?: Record<string, unknown>;
+}
+
+export interface AppendAuditLogParams {
+  tenantId: string;
+  roomId?: string;
+  matchId?: string;
+  userId?: string;
+  actorType: AuditActorType;
+  actorName?: string;
+  action: string;
+  summary?: string;
+  entityType?: string;
+  entityId?: string;
+  payload?: Record<string, unknown>;
+}
+
 export interface StoredMatch {
   id: string;
   roomId: string;
@@ -72,6 +129,15 @@ export interface StoredMatch {
   startedAt?: string;
   pausedAt?: string;
   endedAt?: string;
+  featuredPrizeRoundId?: string;
+  prizeShowcaseVisible: boolean;
+  stageMomentKey?: StageMomentKey;
+  stageMomentTitle?: string;
+  stageMomentMessage?: string;
+  stageMomentExpiresAt?: string;
+  stageMomentVisible: boolean;
+  recentDrawsVisible: boolean;
+  tvResetAt?: string;
   prizeRounds: PrizeRoundConfig[];
   drawEvents: StoredDrawEvent[];
 }

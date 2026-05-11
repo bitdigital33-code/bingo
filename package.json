@@ -23,7 +23,8 @@
     "format": "prettier --write .",
     "prisma:generate": "npm run prisma:generate -w apps/api",
     "prisma:push": "npm run prisma:push -w apps/api",
-    "prisma:seed": "npm run prisma:seed -w apps/api"
+    "prisma:seed": "npm run prisma:seed -w apps/api",
+    "prisma:reset:empty": "npm run prisma:reset:empty -w apps/api"
   },
   "devDependencies": {
     "@types/node": "^24.6.1",

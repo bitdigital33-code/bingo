@@ -22,23 +22,33 @@ Evolua o monorepo atual e preserve a arquitetura existente.
   - `apps/web` -> `React + Vite + Tailwind + Framer Motion`
   - `packages/contracts` -> DTOs e snapshots compartilhados
   - `packages/ui` -> design system compartilhado
-- O backend suporta dois modos de persistencia:
-  - `prisma` para persistencia real em PostgreSQL
-  - `demo` para fallback em memoria
-- A persistencia Prisma real ja esta conectada para:
-  - tenants
-  - usuarios e memberships
-  - salas
-  - partidas
-  - rodadas de premio
-  - sessoes de jogadores
-  - cartelas e atribuicoes
-  - eventos de sorteio
-- Os modos `demo` e `prisma` devem continuar funcionando.
-- O seed cria uma sala demo real:
-  - codigo da sala: `NATAL26`
-  - login admin: `admin@bingo.local`
-  - senha: `bingo123`
+- A API usa persistencia real com `Prisma + PostgreSQL`.
+- O antigo modo demo em memoria foi removido.
+- `DATABASE_URL` e obrigatorio para subir a API.
+- O seed Prisma e vazio por padrao:
+  - nao cria tenant
+  - nao cria usuario admin
+  - nao cria sala demo
+  - nao cria jogadores nem sorteios
+- O primeiro uso deve acontecer criando a organizacao inicial pela tela de login ou por `POST /api/v1/tenants`.
+- Existe um script explicito para zerar banco local de desenvolvimento:
+  - `npm run prisma:reset:empty`
+
+## Persistencia Prisma Atual
+
+A persistencia real esta conectada para:
+
+- tenants
+- usuarios e memberships
+- salas
+- partidas
+- rodadas de premio
+- sessoes de jogadores
+- cartelas e atribuicoes
+- eventos de sorteio
+- win claims
+- audit logs
+- historico administrativo da sala
 
 ## Primeira Regra
 
@@ -66,25 +76,17 @@ Execute na raiz do repositorio:
 ```bash
 npm install
 npm run prisma:generate
-```
-
-Se o PostgreSQL estiver disponivel e configurado:
-
-```bash
 npm run prisma:push
 npm run prisma:seed
 npm run dev
 ```
 
-Se o PostgreSQL ainda nao estiver disponivel:
+Para iniciar completamente zerado em desenvolvimento local:
 
 ```bash
+npm run prisma:reset:empty
 npm run dev
 ```
-
-Nesse caso, use:
-
-- `BINGO_PERSISTENCE=demo`
 
 ## Observacoes De Ambiente
 
@@ -105,7 +107,8 @@ Nesse caso, use:
 - Mantenha a deteccao de vencedores no servidor.
 - Nao mova a verdade do jogo para o frontend.
 - Mantenha as atualizacoes de WebSocket alinhadas com snapshots REST.
-- Mantenha o modo `demo` funcionando mesmo com a expansao do modo `prisma`.
+- Nao reintroduza fallback demo em memoria.
+- Nao troque Prisma por outro ORM.
 
 ## Regras De Produto Nao Negociaveis
 
@@ -119,42 +122,14 @@ Nesse caso, use:
   - anuncios
   - estados de comemoracao
 
-## Estado Ja Verificado
-
-O seguinte ja foi validado antes deste arquivo:
-
-- `npm run build:contracts`
-- `npm run build:api`
-- `npm run build:web`
-- `npm run prisma:generate`
-- `npm run prisma:push`
-- `npm run prisma:seed`
-- `npm run test`
-- `npm run test:e2e -w apps/api -- --runInBand`
-
-O smoke test do Prisma tambem funcionou com:
-
-- `persistenceMode=prisma`
-- sala `NATAL26`
-- `8` jogadores seedados
-
-## Proximo Trabalho Recomendado
-
-Implementar persistencia real para a trilha operacional que ainda falta no SaaS:
-
-1. Persistir `win claims` no Prisma.
-2. Persistir `audit logs` para acoes do admin, correcoes de sorteio, reversoes, pausas, retomadas e alteracoes de sala.
-3. Persistir historico operacional das partidas para analytics e suporte futuros.
-4. Expor esse historico com clareza nas APIs administrativas.
-
 ## Guardrails Para A Proxima IA
 
 - Nao remova nem burle os testes existentes.
 - Adicione ou atualize testes ao alterar regras do jogo ou persistencia.
-- Nao troque Prisma por outro ORM.
 - Nao reescreva a shell do frontend sem necessidade.
 - Nao degrade a UI para um dashboard generico.
 - Nao commit credenciais nem segredos especificos de maquina.
+- Nao rode `npm run prisma:reset:empty` em ambiente que nao seja local/dev.
 
 ## Definicao De Boa Continuacao
 
@@ -163,9 +138,5 @@ Uma boa continuacao e aquela que:
 - fortalece a persistencia real
 - melhora a confiabilidade
 - preserva a experiencia premium
-- mantem o modo demo intacto
+- mantem a base limpa para primeiro uso real
 - entrega junto com testes
-
-
-
-O próximo passo é implementar persistência real de win claims, audit logs e histórico administrativo no Prisma, para fechar a operação SaaS com rastreabilidade completa de vitórias, correções e ações do admin.

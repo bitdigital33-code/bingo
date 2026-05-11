@@ -7,7 +7,10 @@ export class PublicController {
   constructor(private readonly facade: BingoFacadeService) {}
 
   @Post('rooms/:joinCode/join')
-  async joinRoom(@Param('joinCode') joinCode: string, @Body() body: JoinRoomDto) {
+  async joinRoom(
+    @Param('joinCode') joinCode: string,
+    @Body() body: JoinRoomDto,
+  ) {
     return this.facade.joinRoom(joinCode, body);
   }
 
@@ -19,5 +22,10 @@ export class PublicController {
   @Get('rooms/:joinCode/tv-state')
   async getTvState(@Param('joinCode') joinCode: string) {
     return this.facade.getTvState(joinCode);
+  }
+
+  @Get('cards/:accessCode')
+  async getPrintedCard(@Param('accessCode') accessCode: string) {
+    return this.facade.getPrintedCard(accessCode);
   }
 }
