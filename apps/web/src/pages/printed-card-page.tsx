@@ -9,7 +9,7 @@ import { BadgeCheck, RotateCcw } from "lucide-react";
 import { Button, GlassPanel } from "@bingo/ui";
 import { DrawSpotlight } from "@/components/draw-spotlight";
 import { LoadingState } from "@/components/loading-state";
-import { api } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import { useRoomChannel } from "@/hooks/use-room-channel";
 import { useThemeShell } from "@/hooks/use-theme-shell";
 
@@ -17,6 +17,7 @@ export function PrintedCardPage() {
   const { accessCode } = useParams();
   const [data, setData] = useState<PrintedCardDigitalResponseDto>();
   const [error, setError] = useState<string>();
+  const [errorTitle, setErrorTitle] = useState("QR nao autenticado");
   const [loading, setLoading] = useState(true);
   const [manualMarks, setManualMarks] = useState<string[]>(() =>
     loadPrintedCardMarks(accessCode),
@@ -25,23 +26,25 @@ export function PrintedCardPage() {
   useEffect(() => {
     if (!accessCode) {
       setError("QR invalido.");
+      setErrorTitle("QR invalido");
       setLoading(false);
       return;
     }
 
     setLoading(true);
     setError(undefined);
+    setErrorTitle("QR nao autenticado");
     void api
       .getPrintedCard(accessCode)
       .then((response) => {
         setData(response);
         setManualMarks(loadPrintedCardMarks(accessCode));
       })
-      .catch((reason) =>
-        setError(
-          reason instanceof Error ? reason.message : "Cartela nao encontrada.",
-        ),
-      )
+      .catch((reason) => {
+        const resolved = resolvePrintedCardError(reason);
+        setErrorTitle(resolved.title);
+        setError(resolved.message);
+      })
       .finally(() => setLoading(false));
   }, [accessCode]);
 
@@ -71,7 +74,7 @@ export function PrintedCardPage() {
             Cartela digital
           </p>
           <h1 className="m-0 mt-3 font-display text-3xl text-[var(--text-color)]">
-            QR nao autenticado
+            {errorTitle}
           </h1>
           <p className="m-0 mt-3 text-sm leading-6 text-[var(--muted-text)]">
             {error ?? "Esta cartela nao foi emitida pelo painel."}
@@ -266,6 +269,28 @@ function savePrintedCardMarks(accessCode: string | undefined, marks: string[]) {
 
 function printedCardStorageKey(accessCode: string) {
   return `bfp:printed-card:${accessCode}:marks`;
+}
+
+function resolvePrintedCardError(reason: unknown) {
+  if (reason instanceof ApiError && reason.isNetworkError) {
+    return {
+      title: "Sem conexao com o servidor",
+      message: reason.message,
+    };
+  }
+
+  if (reason instanceof ApiError && reason.status === 404) {
+    return {
+      title: "QR nao autenticado",
+      message: reason.message || "Esta cartela nao foi emitida pelo painel.",
+    };
+  }
+
+  return {
+    title: "Falha ao abrir cartela",
+    message:
+      reason instanceof Error ? reason.message : "Cartela nao encontrada.",
+  };
 }
 
 function countMissingForPattern(

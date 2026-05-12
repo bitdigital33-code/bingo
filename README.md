@@ -81,9 +81,11 @@ Copy `.env.example` to `.env` when needed and adjust:
 - `DATABASE_URL` required by the API
 - `REDIS_URL` optional for local development
 - `JWT_SECRET`
-- `VITE_API_URL`
-- `VITE_SOCKET_URL`
+- `VITE_API_URL` optional
+- `VITE_SOCKET_URL` optional
 - `WEB_BASE_URL` optional for public join links and QR codes
+
+For local multi-device usage, you can leave `VITE_API_URL` and `VITE_SOCKET_URL` empty. The frontend will use the same origin as the page and the Vite dev server will proxy `/api`, `/public`, and `/socket.io` to the API.
 
 When printing QR cards for phones on the same network, open the admin panel through the machine IP, for example `http://192.168.x.x:5173/app`. The printed QR uses the browser origin when possible, so the phone does not receive a `localhost` link.
 

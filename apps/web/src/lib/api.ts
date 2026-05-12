@@ -23,24 +23,56 @@ import type {
 } from "@bingo/contracts";
 import { API_URL } from "./env";
 
+export class ApiError extends Error {
+  readonly status?: number;
+  readonly isNetworkError: boolean;
+
+  constructor(
+    message: string,
+    options?: { isNetworkError?: boolean; status?: number },
+  ) {
+    super(message);
+    this.name = "ApiError";
+    this.isNetworkError = options?.isNetworkError ?? false;
+    this.status = options?.status;
+  }
+}
+
 async function request<T>(
   path: string,
   init?: RequestInit,
   token?: string,
 ): Promise<T> {
   const hasBody = init?.body !== undefined;
-  const response = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: {
-      ...(hasBody ? { "Content-Type": "application/json" } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init?.headers ?? {}),
-    },
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...init,
+      headers: {
+        ...(hasBody ? { "Content-Type": "application/json" } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(init?.headers ?? {}),
+      },
+    });
+  } catch (reason) {
+    if (reason instanceof TypeError) {
+      throw new ApiError(
+        "Nao foi possivel conectar ao servidor. Abra o painel e o celular pela mesma rede para usar o QR digital.",
+        {
+          isNetworkError: true,
+        },
+      );
+    }
+
+    throw reason;
+  }
 
   if (!response.ok) {
     const message = await response.text();
-    throw new Error(message || "Falha ao comunicar com o servidor.");
+    throw new ApiError(message || "Falha ao comunicar com o servidor.", {
+      status: response.status,
+    });
   }
 
   return response.json() as Promise<T>;
