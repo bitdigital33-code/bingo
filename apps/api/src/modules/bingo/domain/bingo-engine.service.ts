@@ -24,6 +24,7 @@ import type {
   StoredDrawEvent,
   StoredMatch,
   StoredPlayerSession,
+  StoredPrizeRound,
   StoredRoom,
   StoredTenant,
 } from './internal-types';
@@ -121,7 +122,9 @@ export class BingoEngineService {
       activeTheme: room.theme,
       currentPrizeRoundId:
         activeRound?.id ?? match.prizeRounds.at(-1)?.id ?? '',
-      prizeRounds: projection.prizeRounds,
+      prizeRounds: projection.prizeRounds.map((round) =>
+        this.toPrizeRoundConfig(round),
+      ),
       prizeShowcase,
       stageMoment,
       recentDrawsVisible: match.recentDrawsVisible,
@@ -250,6 +253,23 @@ export class BingoEngineService {
       targetMarks: round.targetMarks,
       order: round.order,
       prize: round.prize,
+      description: round.description,
+      hasPhoto: Boolean(round.photoDataUrl),
+      photoDataUrl: round.photoDataUrl,
+      completedAt: round.completedAt,
+    };
+  }
+
+  private toPrizeRoundConfig(round: StoredPrizeRound) {
+    return {
+      id: round.id,
+      label: round.label,
+      pattern: round.pattern,
+      targetMarks: round.targetMarks,
+      order: round.order,
+      prize: round.prize,
+      description: round.description,
+      hasPhoto: Boolean(round.photoDataUrl),
       completedAt: round.completedAt,
     };
   }

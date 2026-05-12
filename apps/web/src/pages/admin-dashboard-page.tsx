@@ -9,6 +9,7 @@ import type { FormEvent, ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import type {
   AdminHistoryItemDto,
+  CreatePrizeRoundRequest,
   CreateRoomRequest,
   GeneratePrintableCardsRequest,
   GeneratePrintableCardsResponse,
@@ -26,22 +27,31 @@ import type {
 } from "@bingo/contracts";
 import {
   ArrowRight,
+  BarChart3,
   Bell,
+  Camera,
+  Gift,
+  Home,
   Eye,
   EyeOff,
   ListOrdered,
   Mic2,
+  MonitorCog,
   PartyPopper,
+  Palette,
   Plus,
   QrCode,
   RotateCcw,
+  Settings,
   ShieldCheck,
   Sparkles,
   Search,
   Trash2,
   Trophy,
   Tv,
+  Users,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Button, GlassPanel } from "@bingo/ui";
 import { AnnouncementBanner } from "@/components/announcement-banner";
@@ -69,6 +79,7 @@ export function AdminDashboardPage() {
   const [bootstrapLoading, setBootstrapLoading] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [highContrast, setHighContrast] = useState(false);
+  const [adminSection, setAdminSection] = useState<AdminSection>("panel");
   const [error, setError] = useState<string>();
   const [actionBusy, setActionBusy] = useState<string>();
   const [historyItems, setHistoryItems] = useState<AdminHistoryItemDto[]>([]);
@@ -230,14 +241,44 @@ export function AdminDashboardPage() {
 
   const session = auth;
 
-  async function handleCreateRoom(payload: CreateRoomRequest) {
+  async function handleCreateRoom(payload: CreateRoomSetupRequest) {
     setActionBusy("Criacao");
     setError(undefined);
     try {
-      const response = await api.createRoom(session.accessToken, payload);
+      const response = await api.createRoom(
+        session.accessToken,
+        buildCreateRoomRequest(payload),
+      );
       applyRoomSnapshot(response.room);
       setSelectedRoomCode(response.room.roomCode);
       void refreshHistory(response.room.roomId);
+
+      if (payload.printCardsOnCreate) {
+        setPrintableLoading(true);
+        try {
+          const batch = await api.generatePrintableCards(
+            session.accessToken,
+            response.room.roomId,
+            {
+              ...payload.printableCards,
+              title:
+                payload.printableCards.title?.trim() ||
+                response.room.roomName,
+            },
+          );
+          setPrintableBatch(batch);
+          void refreshHistory(response.room.roomId);
+        } catch (reason) {
+          setError(
+            readErrorMessage(
+              reason,
+              "Sala criada, mas nao foi possivel emitir as cartelas impressas.",
+            ),
+          );
+        } finally {
+          setPrintableLoading(false);
+        }
+      }
     } catch (reason) {
       setError(readErrorMessage(reason, "Nao foi possivel criar a sala."));
     } finally {
@@ -288,6 +329,13 @@ export function AdminDashboardPage() {
 
   const currentRoom = activeRoom;
   const currentMatch = currentRoom.match;
+  const activePrizeRound = currentMatch.prizeRounds.find(
+    (entry) => entry.id === currentMatch.currentPrizeRoundId,
+  );
+  const nextPrizeRound =
+    currentMatch.prizeRounds.find(
+      (entry) => !entry.completedAt && entry.id !== activePrizeRound?.id,
+    ) ?? activePrizeRound;
 
   async function refreshRooms() {
     const fresh = await api.listRooms(session.accessToken);
@@ -455,27 +503,31 @@ export function AdminDashboardPage() {
         />
 
         <div className="mx-auto max-w-[1680px] space-y-5">
-          <section className="rounded-lg border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.10),rgba(255,255,255,0.035))] px-5 py-5 shadow-2xl shadow-black/20 md:px-6">
+          <section className="premium-frame rounded-[22px] px-5 py-5 md:px-6">
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-md border border-[var(--accent)]/30 bg-[var(--accent)]/12 px-2.5 py-1 text-[0.66rem] font-bold uppercase tracking-[0.18em] text-[var(--accent)]">
-                    Painel admin
+                  <span className="rounded-[10px] border border-[var(--gold)]/35 bg-[var(--gold)]/10 px-2.5 py-1 text-[0.66rem] font-bold uppercase tracking-[0.18em] text-[var(--gold)]">
+                    1. Painel do anfitriao
                   </span>
-                  <span className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-[0.66rem] font-bold uppercase tracking-[0.18em] text-[var(--muted-text)]">
+                  <span className="rounded-[10px] border border-white/10 bg-white/5 px-2.5 py-1 text-[0.66rem] font-bold uppercase tracking-[0.18em] text-[var(--muted-text)]">
                     {matchStatusLabel(currentMatch.status)}
                   </span>
-                  <span className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-[0.66rem] font-bold uppercase tracking-[0.18em] text-[var(--muted-text)]">
+                  <span className="rounded-[10px] border border-white/10 bg-white/5 px-2.5 py-1 text-[0.66rem] font-bold uppercase tracking-[0.18em] text-[var(--muted-text)]">
                     Sala {currentRoom.roomCode}
                   </span>
                 </div>
-                <h1 className="m-0 mt-3 truncate font-display text-[clamp(2.1rem,4vw,3.5rem)] leading-none text-[var(--text-color)]">
-                  {currentRoom.roomName}
+                <h1 className="m-0 mt-3 truncate font-display text-[clamp(2.4rem,4vw,3.8rem)] leading-none text-[var(--text-color)]">
+                  Painel do Anfitriao
                 </h1>
-                <p className="m-0 mt-3 max-w-3xl text-sm leading-6 text-[var(--muted-text)]">
-                  {auth.user.name} no comando. Use esta tela como mesa de
-                  operacao: sorteio manual, jogadores, TV, premios e historico
-                  ficam separados por prioridade.
+                <p className="m-0 mt-2 max-w-3xl text-sm leading-6 text-[var(--muted-text)]">
+                  {auth.user.name} no comando total da sala.
+                </p>
+                <h2 className="m-0 mt-5 truncate font-display text-[clamp(1.8rem,3vw,2.7rem)] leading-none text-gradient">
+                  {currentRoom.roomName}
+                </h2>
+                <p className="m-0 mt-2 max-w-3xl text-sm leading-6 text-[var(--muted-text)]">
+                  Sorteio manual, premios, jogadores, TV e validacao ficam no mesmo cockpit.
                 </p>
               </div>
 
@@ -512,334 +564,674 @@ export function AdminDashboardPage() {
 
             <div className="mt-5 grid gap-3 md:grid-cols-4">
               <AdminMetricTile
-                label="Bolas"
-                value={String(currentMatch.drawnNumbers.length).padStart(
-                  2,
-                  "0",
-                )}
+                label="Premio principal"
+                value={activePrizeRound?.prize ?? "A definir"}
+                detail={activePrizeRound?.label ?? "Rodada ativa"}
+              />
+              <AdminMetricTile
+                label="Proximo premio"
+                value={nextPrizeRound?.prize ?? "A definir"}
+                detail={nextPrizeRound?.label ?? "Fila de premios"}
+              />
+              <AdminMetricTile
+                label="Rodada"
+                value={`${Math.max(currentMatch.drawnNumbers.length, 0)} / 75`}
                 detail={currentMatch.currentDraw?.display ?? "Sem sorteio"}
               />
               <AdminMetricTile
-                label="Jogadores"
+                label="Jogadores online"
                 value={String(currentMatch.playersOnline)}
                 detail={`${currentMatch.players.length} participantes`}
-              />
-              <AdminMetricTile
-                label="Premio"
-                value={
-                  currentMatch.prizeRounds.find(
-                    (entry) => entry.id === currentMatch.currentPrizeRoundId,
-                  )?.label ?? "Encerrado"
-                }
-                detail="Rodada ativa"
-              />
-              <AdminMetricTile
-                label="Telao"
-                value={currentMatch.endedAt ? "Fechado" : "Pronto"}
-                detail={
-                  currentMatch.tvStandby
-                    ? "Em espera"
-                    : currentMatch.recentDrawsVisible
-                      ? "Ultimos numeros"
-                      : "Sincronizado"
-                }
               />
             </div>
           </section>
 
-          <div className="grid min-w-0 gap-5 xl:grid-cols-[21rem_minmax(0,1fr)_24rem]">
-            <aside className="min-w-0 space-y-4 xl:sticky xl:top-5 xl:self-start">
-              <GlassPanel className="rounded-lg p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="m-0 text-[0.68rem] uppercase tracking-[0.2em] text-[var(--muted-text)]">
-                      Salas
-                    </p>
-                    <p className="m-0 mt-1 text-xs text-[var(--muted-text)]">
-                      Troque, crie ou feche operacoes.
-                    </p>
-                  </div>
-                  <Button
-                    className="px-3 py-2 text-xs"
-                    variant="ghost"
-                    onClick={() => void refreshRooms()}
-                  >
-                    Atualizar
-                  </Button>
-                </div>
-                <div className="mt-4 space-y-2">
-                  {rooms.map((entry) => (
-                    <button
-                      key={entry.roomId}
-                      className={`w-full rounded-lg border px-3.5 py-3 text-left transition ${
-                        selectedRoomCode === entry.roomCode
-                          ? "border-[var(--accent)]/40 bg-[var(--accent)]/14 text-[var(--text-color)] shadow-lg shadow-[var(--accent)]/10"
-                          : "border-white/8 bg-white/5 text-[var(--text-color)] hover:border-white/18 hover:bg-white/8"
-                      }`}
-                      onClick={() => setSelectedRoomCode(entry.roomCode)}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="m-0 truncate text-sm font-bold">
-                            {entry.roomName}
-                          </p>
-                          <p className="m-0 mt-1 text-[0.66rem] uppercase tracking-[0.18em] opacity-70">
-                            {entry.roomCode}
-                          </p>
-                        </div>
-                        <span className="shrink-0 rounded-md bg-white/8 px-2 py-1 text-[0.62rem] uppercase tracking-[0.14em] opacity-80">
-                          {matchStatusLabel(entry.match.status)}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-                {error ? (
-                  <p className="m-0 mt-3 rounded-lg border border-rose-300/20 bg-rose-300/10 px-3 py-2 text-sm text-rose-100">
-                    {error}
-                  </p>
-                ) : null}
-              </GlassPanel>
+          {error ? (
+            <p className="m-0 rounded-[18px] border border-rose-300/25 bg-rose-400/10 px-4 py-3 text-sm font-semibold text-rose-100 shadow-lg shadow-rose-950/20">
+              {error}
+            </p>
+          ) : null}
 
-              <ThemeSwitcher
-                theme={currentRoom.theme}
-                onChange={(theme) => void handleThemeChange(theme)}
-              />
-              <AdminCreateRoomPanel
-                disabled={Boolean(actionBusy)}
-                onCreate={handleCreateRoom}
-              />
-              <AdminPrintableCardsPanel
-                room={currentRoom}
-                disabled={
-                  Boolean(actionBusy) || printableLoading || verificationLoading
-                }
-                loading={printableLoading}
-                onGenerate={handleGeneratePrintableCards}
-                onVerify={handleVerifyPrintableCard}
-                verification={verificationResult}
-                verificationLoading={verificationLoading}
-              />
-              <AdminRoomSettingsPanel
-                room={currentRoom}
-                disabled={Boolean(actionBusy)}
-                onUpdate={(payload) =>
-                  runRoomCommand("Configuracao", () =>
-                    api.updateRoom(
-                      session.accessToken,
-                      currentRoom.roomId,
-                      payload,
-                    ),
-                  )
-                }
-                onDelete={() => handleDeleteRoom(currentRoom)}
-              />
-              <QRJoinPanel room={currentRoom} />
-            </aside>
+          <div className="grid min-w-0 gap-5 xl:grid-cols-[18.5rem_minmax(0,1fr)]">
+            <AdminSidebar
+              activeSection={adminSection}
+              currentRoom={currentRoom}
+              highContrast={highContrast}
+              rooms={rooms}
+              selectedRoomCode={selectedRoomCode}
+              soundEnabled={soundEnabled}
+              userName={session.user.name}
+              onRefreshRooms={() => void refreshRooms()}
+              onSectionChange={setAdminSection}
+              onSelectRoom={setSelectedRoomCode}
+            />
 
             <section className="min-w-0 space-y-5">
-              <AdminCommandOverview match={currentMatch} />
-              <DrawSpotlight draw={currentMatch.currentDraw} />
-              <AnnouncementBanner cues={currentMatch.announcements} />
-              <ManualDrawPad
-                currentDraw={currentMatch.currentDraw}
-                disabled={
-                  Boolean(actionBusy) ||
-                  currentMatch.status === "paused" ||
-                  currentMatch.status === "completed"
-                }
-                onSubmit={(payload) =>
-                  runRoomCommand("Sorteio", () =>
-                    api.addDraw(
-                      session.accessToken,
-                      currentMatch.matchId,
-                      payload,
-                    ),
-                  )
-                }
-                onCorrectLast={(payload) =>
-                  currentMatch.currentDraw
-                    ? runRoomCommand("Correcao", () =>
-                        api.correctDraw(
-                          session.accessToken,
-                          currentMatch.matchId,
-                          currentMatch.currentDraw!.id,
-                          payload,
-                        ),
-                      )
-                    : Promise.resolve()
-                }
-                onRevertLast={() =>
-                  currentMatch.currentDraw
-                    ? runRoomCommand("Reversao", () =>
-                        api.revertDraw(
-                          session.accessToken,
-                          currentMatch.matchId,
-                          currentMatch.currentDraw!.id,
-                        ),
-                      )
-                    : Promise.resolve()
-                }
-              />
-
-              <GlassPanel className="space-y-4 rounded-lg p-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="m-0 text-[0.68rem] uppercase tracking-[0.22em] text-[var(--muted-text)]">
-                      Historico e status
-                    </p>
-                    <p className="m-0 mt-1 text-sm text-[var(--muted-text)]">
-                      Rodada ativa:{" "}
-                      {currentMatch.prizeRounds.find(
-                        (entry) =>
-                          entry.id === currentMatch.currentPrizeRoundId,
-                      )?.label ?? "Encerrada"}
-                    </p>
-                    <p className="m-0 mt-1 text-sm font-semibold text-[var(--text-color)]">
-                      Status: {matchStatusLabel(currentMatch.status)}
-                      {actionBusy
-                        ? ` - aplicando ${actionBusy.toLowerCase()}...`
-                        : ""}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {currentMatch.status === "completed" ? (
-                      <Button variant="secondary" disabled>
-                        Partida encerrada
-                      </Button>
-                    ) : currentMatch.status !== "live" ? (
-                      <Button
-                        variant="secondary"
-                        disabled={Boolean(actionBusy)}
-                        onClick={() =>
-                          void runRoomCommand("Retomada", () =>
-                            api.resumeMatch(
-                              session.accessToken,
-                              currentMatch.matchId,
-                            ),
-                          )
-                        }
-                      >
-                        Colocar ao vivo
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="secondary"
-                        disabled={Boolean(actionBusy)}
-                        onClick={() =>
-                          void runRoomCommand("Pausa", () =>
-                            api.pauseMatch(
-                              session.accessToken,
-                              currentMatch.matchId,
-                            ),
-                          )
-                        }
-                      >
-                        Pausar
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      disabled={
-                        Boolean(actionBusy) || !currentMatch.currentDraw
-                      }
-                      onClick={() =>
-                        void runRoomCommand("Replay", () =>
-                          api.replayLast(
-                            session.accessToken,
-                            currentMatch.matchId,
-                          ),
-                        )
-                      }
-                    >
-                      Replay ultimo
-                    </Button>
-                    <Button
-                      variant="ghost"
+              {adminSection === "panel" ? (
+                <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_24rem]">
+                  <div className="min-w-0 space-y-5">
+                    <AdminCommandOverview match={currentMatch} />
+                    <DrawSpotlight draw={currentMatch.currentDraw} />
+                    <AnnouncementBanner cues={currentMatch.announcements} />
+                    <ManualDrawPad
+                      currentDraw={currentMatch.currentDraw}
                       disabled={
                         Boolean(actionBusy) ||
+                        currentMatch.status === "paused" ||
                         currentMatch.status === "completed"
                       }
-                      onClick={() =>
-                        void runRoomCommand("Encerramento", () =>
-                          api.endMatch(
+                      onSubmit={(payload) =>
+                        runRoomCommand("Sorteio", () =>
+                          api.addDraw(
                             session.accessToken,
                             currentMatch.matchId,
+                            payload,
                           ),
                         )
                       }
-                    >
-                      {currentMatch.status === "completed"
-                        ? "Encerrada"
-                        : "Encerrar"}
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      disabled={Boolean(actionBusy)}
-                      onClick={() => void handleCloseAndCreateRoom()}
-                    >
-                      Nova sala limpa
-                    </Button>
+                      onCorrectLast={(payload) =>
+                        currentMatch.currentDraw
+                          ? runRoomCommand("Correcao", () =>
+                              api.correctDraw(
+                                session.accessToken,
+                                currentMatch.matchId,
+                                currentMatch.currentDraw!.id,
+                                payload,
+                              ),
+                            )
+                          : Promise.resolve()
+                      }
+                      onRevertLast={() =>
+                        currentMatch.currentDraw
+                          ? runRoomCommand("Reversao", () =>
+                              api.revertDraw(
+                                session.accessToken,
+                                currentMatch.matchId,
+                                currentMatch.currentDraw!.id,
+                              ),
+                            )
+                          : Promise.resolve()
+                      }
+                    />
+
+                    <GlassPanel className="space-y-4 rounded-[22px] p-5">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="m-0 text-[0.68rem] uppercase tracking-[0.22em] text-[var(--muted-text)]">
+                            Historico e status
+                          </p>
+                          <p className="m-0 mt-1 text-sm text-[var(--muted-text)]">
+                            Rodada ativa:{" "}
+                            {currentMatch.prizeRounds.find(
+                              (entry) =>
+                                entry.id === currentMatch.currentPrizeRoundId,
+                            )?.label ?? "Encerrada"}
+                          </p>
+                          <p className="m-0 mt-1 text-sm font-semibold text-[var(--text-color)]">
+                            Status: {matchStatusLabel(currentMatch.status)}
+                            {actionBusy
+                              ? ` - aplicando ${actionBusy.toLowerCase()}...`
+                              : ""}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {currentMatch.status === "completed" ? (
+                            <Button variant="secondary" disabled>
+                              Partida encerrada
+                            </Button>
+                          ) : currentMatch.status !== "live" ? (
+                            <Button
+                              variant="secondary"
+                              disabled={Boolean(actionBusy)}
+                              onClick={() =>
+                                void runRoomCommand("Retomada", () =>
+                                  api.resumeMatch(
+                                    session.accessToken,
+                                    currentMatch.matchId,
+                                  ),
+                                )
+                              }
+                            >
+                              Colocar ao vivo
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="secondary"
+                              disabled={Boolean(actionBusy)}
+                              onClick={() =>
+                                void runRoomCommand("Pausa", () =>
+                                  api.pauseMatch(
+                                    session.accessToken,
+                                    currentMatch.matchId,
+                                  ),
+                                )
+                              }
+                            >
+                              Pausar
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            disabled={
+                              Boolean(actionBusy) || !currentMatch.currentDraw
+                            }
+                            onClick={() =>
+                              void runRoomCommand("Replay", () =>
+                                api.replayLast(
+                                  session.accessToken,
+                                  currentMatch.matchId,
+                                ),
+                              )
+                            }
+                          >
+                            Replay ultimo
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            disabled={
+                              Boolean(actionBusy) ||
+                              currentMatch.status === "completed"
+                            }
+                            onClick={() =>
+                              void runRoomCommand("Encerramento", () =>
+                                api.endMatch(
+                                  session.accessToken,
+                                  currentMatch.matchId,
+                                ),
+                              )
+                            }
+                          >
+                            {currentMatch.status === "completed"
+                              ? "Encerrada"
+                              : "Encerrar"}
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            disabled={Boolean(actionBusy)}
+                            onClick={() => void handleCloseAndCreateRoom()}
+                          >
+                            Nova sala limpa
+                          </Button>
+                        </div>
+                      </div>
+
+                      <RecentDrawsRail draws={currentMatch.recentDraws} />
+                    </GlassPanel>
+                  </div>
+
+                  <aside className="min-w-0 space-y-4">
+                    <ProximityTicker
+                      entries={deferredProximity}
+                      onBroadcastAlert={(entry) =>
+                        void handleBroadcastNearWinAlert(entry)
+                      }
+                    />
+                    <RankingRail entries={deferredProximity} />
+                    <AdminHistoryPanel
+                      items={historyItems}
+                      loading={historyLoading}
+                      onRefresh={() => void refreshHistory(currentRoom.roomId)}
+                    />
+                  </aside>
+                </div>
+              ) : null}
+
+              {adminSection === "rooms" ? (
+                <div className="space-y-5">
+                  <AdminSectionHeader
+                    description="Crie, alterne ou remova salas mantendo o QR do evento sempre a mao."
+                    label="Salas"
+                    title="Controle de salas"
+                  />
+                  <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_24rem]">
+                    <GlassPanel className="rounded-[22px] p-5">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="m-0 text-[0.68rem] uppercase tracking-[0.22em] text-[var(--muted-text)]">
+                            Salas disponiveis
+                          </p>
+                          <p className="m-0 mt-1 text-sm text-[var(--muted-text)]">
+                            Escolha a sala que o anfitriao esta comandando.
+                          </p>
+                        </div>
+                        <Button
+                          className="px-3 py-2 text-xs"
+                          variant="ghost"
+                          onClick={() => void refreshRooms()}
+                        >
+                          Atualizar
+                        </Button>
+                      </div>
+                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        {rooms.map((entry) => (
+                          <button
+                            key={entry.roomId}
+                            className={`rounded-[18px] border px-4 py-4 text-left transition ${
+                              selectedRoomCode === entry.roomCode
+                                ? "border-[var(--gold)]/50 bg-[var(--gold)]/14 text-[var(--text-color)] shadow-xl shadow-[var(--gold)]/10"
+                                : "border-[var(--border-color)] bg-white/5 text-[var(--text-color)] hover:border-[var(--gold)]/35 hover:bg-white/8"
+                            }`}
+                            onClick={() => setSelectedRoomCode(entry.roomCode)}
+                          >
+                            <span className="text-[0.64rem] font-bold uppercase tracking-[0.18em] text-[var(--gold)]">
+                              {entry.roomCode}
+                            </span>
+                            <p className="m-0 mt-2 truncate font-display text-2xl font-bold">
+                              {entry.roomName}
+                            </p>
+                            <p className="m-0 mt-2 text-xs uppercase tracking-[0.16em] text-[var(--muted-text)]">
+                              {matchStatusLabel(entry.match.status)}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    </GlassPanel>
+
+                    <div className="space-y-5">
+                      <AdminCreateRoomPanel
+                        disabled={Boolean(actionBusy)}
+                        onCreate={handleCreateRoom}
+                      />
+                      <QRJoinPanel room={currentRoom} />
+                      <GlassPanel className="rounded-[22px] border-rose-200/20 bg-rose-400/10 p-5">
+                        <div className="flex items-start gap-3">
+                          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px] border border-rose-200/25 bg-rose-400/15 text-rose-100">
+                            <Trash2 className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="m-0 text-[0.68rem] font-black uppercase tracking-[0.22em] text-rose-100">
+                              Remover sala
+                            </p>
+                            <p className="m-0 mt-2 text-sm font-semibold text-[var(--text-color)]">
+                              {currentRoom.roomName}
+                            </p>
+                            <p className="m-0 mt-1 text-xs leading-5 text-[var(--muted-text)]">
+                              Exclui a sala selecionada, partida, jogadores,
+                              cartelas vinculadas e historico operacional.
+                            </p>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              disabled={Boolean(actionBusy)}
+                              className="mt-4 w-full gap-2 border-rose-200/25 text-rose-100 hover:border-rose-200/45"
+                              onClick={() => handleDeleteRoom(currentRoom)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Excluir sala selecionada
+                            </Button>
+                          </div>
+                        </div>
+                      </GlassPanel>
+                    </div>
                   </div>
                 </div>
+              ) : null}
 
-                <RecentDrawsRail draws={currentMatch.recentDraws} />
-              </GlassPanel>
+              {adminSection === "match" ? (
+                <div className="space-y-5">
+                  <AdminSectionHeader
+                    description="Sorteio manual grande, correcao segura, reversao e replay para o telao."
+                    label="Partida"
+                    title="Comando da rodada"
+                  />
+                  <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_22rem]">
+                    <div className="min-w-0 space-y-5">
+                      <ManualDrawPad
+                        currentDraw={currentMatch.currentDraw}
+                        disabled={
+                          Boolean(actionBusy) ||
+                          currentMatch.status === "paused" ||
+                          currentMatch.status === "completed"
+                        }
+                        onSubmit={(payload) =>
+                          runRoomCommand("Sorteio", () =>
+                            api.addDraw(
+                              session.accessToken,
+                              currentMatch.matchId,
+                              payload,
+                            ),
+                          )
+                        }
+                        onCorrectLast={(payload) =>
+                          currentMatch.currentDraw
+                            ? runRoomCommand("Correcao", () =>
+                                api.correctDraw(
+                                  session.accessToken,
+                                  currentMatch.matchId,
+                                  currentMatch.currentDraw!.id,
+                                  payload,
+                                ),
+                              )
+                            : Promise.resolve()
+                        }
+                        onRevertLast={() =>
+                          currentMatch.currentDraw
+                            ? runRoomCommand("Reversao", () =>
+                                api.revertDraw(
+                                  session.accessToken,
+                                  currentMatch.matchId,
+                                  currentMatch.currentDraw!.id,
+                                ),
+                              )
+                            : Promise.resolve()
+                        }
+                      />
+                      <GlassPanel className="space-y-4 rounded-[22px] p-5">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="m-0 text-[0.68rem] uppercase tracking-[0.22em] text-[var(--muted-text)]">
+                              Estado operacional
+                            </p>
+                            <p className="m-0 mt-1 text-sm font-semibold text-[var(--text-color)]">
+                              {matchStatusLabel(currentMatch.status)}
+                              {actionBusy
+                                ? ` - aplicando ${actionBusy.toLowerCase()}...`
+                                : ""}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {currentMatch.status !== "live" ? (
+                              <Button
+                                variant="secondary"
+                                disabled={
+                                  Boolean(actionBusy) ||
+                                  currentMatch.status === "completed"
+                                }
+                                onClick={() =>
+                                  void runRoomCommand("Retomada", () =>
+                                    api.resumeMatch(
+                                      session.accessToken,
+                                      currentMatch.matchId,
+                                    ),
+                                  )
+                                }
+                              >
+                                Ao vivo
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="secondary"
+                                disabled={Boolean(actionBusy)}
+                                onClick={() =>
+                                  void runRoomCommand("Pausa", () =>
+                                    api.pauseMatch(
+                                      session.accessToken,
+                                      currentMatch.matchId,
+                                    ),
+                                  )
+                                }
+                              >
+                                Pausar
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              disabled={
+                                Boolean(actionBusy) ||
+                                !currentMatch.currentDraw
+                              }
+                              onClick={() =>
+                                void runRoomCommand("Replay", () =>
+                                  api.replayLast(
+                                    session.accessToken,
+                                    currentMatch.matchId,
+                                  ),
+                                )
+                              }
+                            >
+                              Replay
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              disabled={
+                                Boolean(actionBusy) ||
+                                currentMatch.status === "completed"
+                              }
+                              onClick={() =>
+                                void runRoomCommand("Encerramento", () =>
+                                  api.endMatch(
+                                    session.accessToken,
+                                    currentMatch.matchId,
+                                  ),
+                                )
+                              }
+                            >
+                              Encerrar
+                            </Button>
+                          </div>
+                        </div>
+                        <RecentDrawsRail draws={currentMatch.recentDraws} />
+                      </GlassPanel>
+                    </div>
+                    <div className="space-y-5">
+                      <DrawSpotlight draw={currentMatch.currentDraw} />
+                      <AdminHistoryPanel
+                        items={historyItems}
+                        loading={historyLoading}
+                        onRefresh={() => void refreshHistory(currentRoom.roomId)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {adminSection === "players" ? (
+                <div className="space-y-5">
+                  <AdminSectionHeader
+                    description="Acompanhe quem esta perto do bingo e aja rapido sem poluir a tela principal."
+                    label="Jogadores"
+                    title="Mesa social da sala"
+                  />
+                  <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_24rem]">
+                    <AdminPlayersPanel
+                      players={currentMatch.players}
+                      disabled={Boolean(actionBusy)}
+                      onToggleAutoMark={(player) =>
+                        runRoomCommand("Jogador", () =>
+                          api.updatePlayer(
+                            session.accessToken,
+                            currentRoom.roomId,
+                            player.id,
+                            {
+                              autoMark: !isPlayerAutoMarked(player),
+                            },
+                          ),
+                        )
+                      }
+                      onRemove={(player) =>
+                        runRoomCommand("Remocao", () =>
+                          api.removePlayer(
+                            session.accessToken,
+                            currentRoom.roomId,
+                            player.id,
+                          ),
+                        )
+                      }
+                    />
+                    <div className="space-y-5">
+                      <ProximityTicker
+                        entries={deferredProximity}
+                        onBroadcastAlert={(entry) =>
+                          void handleBroadcastNearWinAlert(entry)
+                        }
+                      />
+                      <RankingRail entries={deferredProximity} />
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {adminSection === "prizes" ? (
+                <div className="space-y-5">
+                  <AdminSectionHeader
+                    description="Configure rodadas, premios e o que aparece no modo TV para a familia."
+                    label="Premios"
+                    title="Palco dos premios"
+                  />
+                  <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_24rem]">
+                    <AdminPrizeCommandPanel
+                      match={currentMatch}
+                      disabled={
+                        Boolean(actionBusy) || Boolean(currentMatch.endedAt)
+                      }
+                      onShowcase={handleSetPrizeShowcase}
+                      onUpdate={handleUpdatePrizeRounds}
+                      onResetTv={handleResetTvPresentation}
+                    />
+                    <AdminCommandOverview match={currentMatch} />
+                  </div>
+                </div>
+              ) : null}
+
+              {adminSection === "themes" ? (
+                <div className="space-y-5">
+                  <AdminSectionHeader
+                    description="Troque o clima da noite sem perder contraste, legibilidade e identidade premium."
+                    label="Temas"
+                    title="Direcao visual"
+                  />
+                  <div className="grid gap-5 lg:grid-cols-[24rem_minmax(0,1fr)]">
+                    <ThemeSwitcher
+                      theme={currentRoom.theme}
+                      onChange={(theme) => void handleThemeChange(theme)}
+                    />
+                    <GlassPanel className="rounded-[22px] p-5">
+                      <p className="m-0 text-[0.68rem] uppercase tracking-[0.22em] text-[var(--muted-text)]">
+                        Previa da sala
+                      </p>
+                      <div className="mt-4 grid gap-4 md:grid-cols-3">
+                        <AdminMetricTile
+                          label="Tema atual"
+                          value={currentRoom.theme}
+                          detail="Aplicado no painel, jogador e TV"
+                        />
+                        <AdminMetricTile
+                          label="Contraste"
+                          value={highContrast ? "Alto" : "Padrao"}
+                          detail="Pensado para projetor e idosos"
+                        />
+                        <AdminMetricTile
+                          label="Audio"
+                          value={soundEnabled ? "Ligado" : "Desligado"}
+                          detail="Narracao local do anfitriao"
+                        />
+                      </div>
+                    </GlassPanel>
+                  </div>
+                </div>
+              ) : null}
+
+              {adminSection === "stats" ? (
+                <div className="space-y-5">
+                  <AdminSectionHeader
+                    description="Um raio-x rapido da partida: atividade, ultimos eventos e ranking de proximidade."
+                    label="Estatisticas"
+                    title="Pulso do evento"
+                  />
+                  <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_24rem]">
+                    <div className="space-y-5">
+                      <AdminCommandOverview match={currentMatch} />
+                      <AdminHistoryPanel
+                        items={historyItems}
+                        loading={historyLoading}
+                        onRefresh={() => void refreshHistory(currentRoom.roomId)}
+                      />
+                    </div>
+                    <RankingRail entries={deferredProximity} />
+                  </div>
+                </div>
+              ) : null}
+
+              {adminSection === "tv" ? (
+                <div className="space-y-5">
+                  <AdminSectionHeader
+                    description="Prepare o telao, dispare momentos de palco e mantenha o publico olhando para o numero certo."
+                    label="TV Mode"
+                    title="Modo sala cinematografico"
+                  />
+                  <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_24rem]">
+                    <div className="space-y-5">
+                      <DrawSpotlight draw={currentMatch.currentDraw} large />
+                      <AnnouncementBanner cues={currentMatch.announcements} />
+                    </div>
+                    <div className="space-y-5">
+                      <GlassPanel className="rounded-[22px] p-5">
+                        <p className="m-0 text-[0.68rem] uppercase tracking-[0.22em] text-[var(--muted-text)]">
+                          Tela publica
+                        </p>
+                        <p className="m-0 mt-2 text-sm leading-6 text-[var(--muted-text)]">
+                          Abra em uma Smart TV, projetor ou segunda janela. O
+                          telao mostra apenas o necessario para o publico.
+                        </p>
+                        <a
+                          className="mt-4 inline-flex"
+                          href={`/room/${currentRoom.roomCode}/tv`}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          <Button className="gap-2">
+                            <Tv className="h-4 w-4" />
+                            Abrir TV / Projetor
+                          </Button>
+                        </a>
+                      </GlassPanel>
+                      <AdminStageMomentsPanel
+                        room={currentRoom}
+                        disabled={
+                          Boolean(actionBusy) || Boolean(currentMatch.endedAt)
+                        }
+                        onResetTv={handleResetTvPresentation}
+                        onSetRecentDraws={handleSetRecentDrawsShowcase}
+                        onSetStageMoment={handleSetStageMoment}
+                      />
+                      <QRJoinPanel room={currentRoom} />
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {adminSection === "settings" ? (
+                <div className="space-y-5">
+                  <AdminSectionHeader
+                    description="Regras de entrada, cartelas impressas, QR seguro e manutencao da sala."
+                    label="Configuracoes"
+                    title="Operacao segura"
+                  />
+                  <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_24rem]">
+                    <div className="space-y-5">
+                      <AdminRoomSettingsPanel
+                        room={currentRoom}
+                        disabled={Boolean(actionBusy)}
+                        onUpdate={(payload) =>
+                          runRoomCommand("Configuracao", () =>
+                            api.updateRoom(
+                              session.accessToken,
+                              currentRoom.roomId,
+                              payload,
+                            ),
+                          )
+                        }
+                        onDelete={() => handleDeleteRoom(currentRoom)}
+                      />
+                      <AdminPrintableCardsPanel
+                        room={currentRoom}
+                        disabled={
+                          Boolean(actionBusy) ||
+                          printableLoading ||
+                          verificationLoading
+                        }
+                        loading={printableLoading}
+                        onGenerate={handleGeneratePrintableCards}
+                        onVerify={handleVerifyPrintableCard}
+                        verification={verificationResult}
+                        verificationLoading={verificationLoading}
+                      />
+                    </div>
+                    <QRJoinPanel room={currentRoom} />
+                  </div>
+                </div>
+              ) : null}
             </section>
-
-            <aside className="min-w-0 space-y-4 xl:sticky xl:top-5 xl:self-start">
-              <ProximityTicker
-                entries={deferredProximity}
-                onBroadcastAlert={(entry) =>
-                  void handleBroadcastNearWinAlert(entry)
-                }
-              />
-              <RankingRail entries={deferredProximity} />
-              <AdminPlayersPanel
-                players={currentMatch.players}
-                disabled={Boolean(actionBusy)}
-                onToggleAutoMark={(player) =>
-                  runRoomCommand("Jogador", () =>
-                    api.updatePlayer(
-                      session.accessToken,
-                      currentRoom.roomId,
-                      player.id,
-                      {
-                        autoMark: !isPlayerAutoMarked(player),
-                      },
-                    ),
-                  )
-                }
-                onRemove={(player) =>
-                  runRoomCommand("Remocao", () =>
-                    api.removePlayer(
-                      session.accessToken,
-                      currentRoom.roomId,
-                      player.id,
-                    ),
-                  )
-                }
-              />
-              <AdminHistoryPanel
-                items={historyItems}
-                loading={historyLoading}
-                onRefresh={() => void refreshHistory(currentRoom.roomId)}
-              />
-              <AdminStageMomentsPanel
-                room={currentRoom}
-                disabled={Boolean(actionBusy) || Boolean(currentMatch.endedAt)}
-                onResetTv={handleResetTvPresentation}
-                onSetRecentDraws={handleSetRecentDrawsShowcase}
-                onSetStageMoment={handleSetStageMoment}
-              />
-              <AdminPrizeCommandPanel
-                match={currentMatch}
-                disabled={Boolean(actionBusy) || Boolean(currentMatch.endedAt)}
-                onShowcase={handleSetPrizeShowcase}
-                onUpdate={handleUpdatePrizeRounds}
-                onResetTv={handleResetTvPresentation}
-              />
-            </aside>
           </div>
         </div>
       </main>
@@ -911,6 +1303,352 @@ const STAGE_MOMENT_PRESETS: Array<{
   },
 ];
 
+type AdminSection =
+  | "panel"
+  | "rooms"
+  | "match"
+  | "players"
+  | "prizes"
+  | "themes"
+  | "stats"
+  | "tv"
+  | "settings";
+
+const ADMIN_NAV_ITEMS: Array<{
+  id: AdminSection;
+  label: string;
+  detail: string;
+  icon: LucideIcon;
+}> = [
+  { id: "panel", label: "Painel", detail: "Visao geral", icon: Home },
+  { id: "rooms", label: "Salas", detail: "Criar e trocar", icon: MonitorCog },
+  { id: "match", label: "Partida", detail: "Sorteio manual", icon: ListOrdered },
+  { id: "players", label: "Jogadores", detail: "Mesa e ranking", icon: Users },
+  { id: "prizes", label: "Premios", detail: "Rodadas e destaque", icon: Gift },
+  { id: "themes", label: "Temas", detail: "Visual da sala", icon: Palette },
+  { id: "stats", label: "Estatisticas", detail: "Pulso do evento", icon: BarChart3 },
+  { id: "tv", label: "TV Mode", detail: "Telao e hype", icon: Tv },
+  { id: "settings", label: "Configuracoes", detail: "Regras e QR", icon: Settings },
+];
+
+type CreatePrizeTarget = 3 | 4 | 5 | 7 | 10 | "full_house";
+
+type CreatePrizeDraft = {
+  clientKey: string;
+  label: string;
+  target: CreatePrizeTarget;
+  prize: string;
+  description: string;
+  photoDataUrl?: string;
+};
+
+type CreateRoomSetupRequest = Omit<CreateRoomRequest, "prizeRounds"> & {
+  prizeDrafts: CreatePrizeDraft[];
+  firstPrizeKey: string;
+  printCardsOnCreate: boolean;
+  printableCards: GeneratePrintableCardsRequest;
+};
+
+const CREATE_PRIZE_TARGET_OPTIONS: Array<{
+  value: CreatePrizeTarget;
+  label: string;
+  detail: string;
+}> = [
+  { value: 3, label: "3 numeros", detail: "Rodada relampago" },
+  { value: 4, label: "4 numeros", detail: "Curta e divertida" },
+  { value: 5, label: "5 numeros", detail: "Equilibrada" },
+  { value: 7, label: "7 numeros", detail: "Mais disputa" },
+  { value: 10, label: "10 numeros", detail: "Premio forte" },
+  { value: "full_house", label: "Cheia", detail: "Cartela completa" },
+];
+
+function createDefaultRoomSetup(): CreateRoomSetupRequest {
+  const prizeDrafts = [
+    createRoomPrizeDraft(1, 3),
+    createRoomPrizeDraft(2, 5),
+    createRoomPrizeDraft(3, "full_house"),
+  ];
+
+  return {
+    name: "",
+    theme: "cassino",
+    maxCardsPerPlayer: 3,
+    allowAutoMark: true,
+    allowManualMark: true,
+    prizeDrafts,
+    firstPrizeKey: prizeDrafts[0].clientKey,
+    printCardsOnCreate: false,
+    printableCards: {
+      quantity: 24,
+      cardsPerPage: 4,
+      title: "",
+    },
+  };
+}
+
+function createRoomPrizeDraft(
+  order: number,
+  target: CreatePrizeTarget = 5,
+): CreatePrizeDraft {
+  return {
+    clientKey: `create-prize-${Date.now()}-${order}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}`,
+    label: createPrizeTargetLabel(target, order),
+    target,
+    prize:
+      target === "full_house"
+        ? "Premio final da noite"
+        : `Premio ${createPrizeTargetText(target)}`,
+    description:
+      target === "full_house"
+        ? "Encerramento da noite com o premio mais aguardado."
+        : "Conte em poucas palavras o que o vencedor vai receber.",
+  };
+}
+
+function buildCreateRoomRequest(
+  setup: CreateRoomSetupRequest,
+): CreateRoomRequest {
+  const orderedPrizeDrafts = moveCreatePrizeToFirst(
+    setup.prizeDrafts,
+    setup.firstPrizeKey,
+  );
+
+  return {
+    name: setup.name.trim(),
+    theme: setup.theme,
+    maxCardsPerPlayer: setup.maxCardsPerPlayer,
+    allowAutoMark: setup.allowAutoMark,
+    allowManualMark: setup.allowManualMark,
+    prizeRounds: orderedPrizeDrafts.map(toCreatePrizeRoundRequest),
+  };
+}
+
+function toCreatePrizeRoundRequest(
+  draft: CreatePrizeDraft,
+): CreatePrizeRoundRequest {
+  const markedCount =
+    typeof draft.target === "number" ? draft.target : undefined;
+
+  return {
+    label: draft.label.trim(),
+    pattern: draft.target === "full_house" ? "full_house" : "marked_count",
+    targetMarks: markedCount,
+    prize: draft.prize.trim(),
+    description: draft.description.trim() || undefined,
+    photoDataUrl: draft.photoDataUrl,
+  };
+}
+
+function moveCreatePrizeToFirst(
+  drafts: CreatePrizeDraft[],
+  firstPrizeKey: string,
+) {
+  const first = drafts.find((draft) => draft.clientKey === firstPrizeKey);
+  if (!first) {
+    return drafts;
+  }
+
+  return [
+    first,
+    ...drafts.filter((draft) => draft.clientKey !== firstPrizeKey),
+  ];
+}
+
+function createPrizeTargetLabel(target: CreatePrizeTarget, order: number) {
+  if (target === "full_house") {
+    return "Cartela Cheia";
+  }
+
+  return order === 1
+    ? `Premio ${target} numeros`
+    : `Rodada ${target} numeros`;
+}
+
+function createPrizeTargetText(target: CreatePrizeTarget) {
+  return target === "full_house" ? "cartela cheia" : `${target} numeros`;
+}
+
+function AdminSidebar({
+  activeSection,
+  currentRoom,
+  highContrast,
+  rooms,
+  selectedRoomCode,
+  soundEnabled,
+  userName,
+  onRefreshRooms,
+  onSectionChange,
+  onSelectRoom,
+}: {
+  activeSection: AdminSection;
+  currentRoom: RoomSnapshot;
+  highContrast: boolean;
+  rooms: RoomSnapshot[];
+  selectedRoomCode?: string;
+  soundEnabled: boolean;
+  userName: string;
+  onRefreshRooms: () => void;
+  onSectionChange: (section: AdminSection) => void;
+  onSelectRoom: (roomCode: string) => void;
+}) {
+  return (
+    <aside className="min-w-0 xl:sticky xl:top-5 xl:self-start">
+      <GlassPanel className="relative overflow-hidden rounded-[24px] p-0">
+        <div className="absolute inset-y-0 left-0 w-px bg-gradient-to-b from-transparent via-[var(--gold)]/60 to-transparent" />
+        <div className="border-b border-[var(--border-color)] px-5 py-5 text-center">
+          <p className="m-0 font-display text-3xl font-black leading-none text-gradient">
+            BINGO
+          </p>
+          <p className="m-0 mt-1 text-[0.68rem] font-bold uppercase tracking-[0.38em] text-[var(--muted-text)]">
+            Familiar
+          </p>
+          <span className="mt-2 inline-flex rounded-full border border-[var(--gold)]/45 bg-[var(--gold)]/15 px-3 py-1 text-[0.58rem] font-black uppercase tracking-[0.24em] text-[var(--gold)]">
+            Premium
+          </span>
+        </div>
+
+        <nav className="space-y-1.5 px-3 py-4" aria-label="Menu do painel">
+          {ADMIN_NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const active = activeSection === item.id;
+
+            return (
+              <button
+                key={item.id}
+                aria-pressed={active}
+                className={`group flex w-full items-center gap-3 rounded-[16px] border px-3.5 py-3 text-left transition ${
+                  active
+                    ? "border-emerald-300/35 bg-emerald-400/18 text-white shadow-lg shadow-emerald-950/20"
+                    : "border-transparent bg-transparent text-[var(--muted-text)] hover:border-[var(--gold)]/25 hover:bg-white/6 hover:text-[var(--text-color)]"
+                }`}
+                onClick={() => onSectionChange(item.id)}
+              >
+                <span
+                  className={`grid h-9 w-9 shrink-0 place-items-center rounded-[12px] border ${
+                    active
+                      ? "border-emerald-200/30 bg-emerald-400/20 text-emerald-100"
+                      : "border-white/10 bg-white/5 text-[var(--muted-text)] group-hover:text-[var(--gold)]"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-bold">{item.label}</span>
+                  <span className="mt-0.5 block text-[0.68rem] text-[var(--muted-text)]">
+                    {item.detail}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="space-y-3 border-t border-[var(--border-color)] px-4 py-4">
+          <div className="rounded-[18px] border border-[var(--gold)]/20 bg-[var(--gold)]/8 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="m-0 text-[0.62rem] font-bold uppercase tracking-[0.2em] text-[var(--gold)]">
+                Sala ativa
+              </p>
+              <button
+                className="rounded-full border border-white/10 px-2 py-1 text-[0.58rem] uppercase tracking-[0.14em] text-[var(--muted-text)] transition hover:border-[var(--gold)]/40 hover:text-[var(--gold)]"
+                type="button"
+                onClick={onRefreshRooms}
+              >
+                Sync
+              </button>
+            </div>
+            <p className="m-0 mt-2 truncate text-sm font-black text-[var(--text-color)]">
+              {currentRoom.roomName}
+            </p>
+            <p className="m-0 mt-1 text-xs uppercase tracking-[0.16em] text-[var(--muted-text)]">
+              {currentRoom.roomCode} - {matchStatusLabel(currentRoom.match.status)}
+            </p>
+          </div>
+
+          {rooms.length > 1 ? (
+            <div className="space-y-1">
+              {rooms.slice(0, 3).map((room) => (
+                <button
+                  key={room.roomId}
+                  className={`flex w-full items-center justify-between gap-2 rounded-[12px] border px-3 py-2 text-left text-xs transition ${
+                    room.roomCode === selectedRoomCode
+                      ? "border-[var(--gold)]/35 bg-[var(--gold)]/12 text-[var(--text-color)]"
+                      : "border-white/10 bg-white/5 text-[var(--muted-text)] hover:border-[var(--gold)]/30"
+                  }`}
+                  type="button"
+                  onClick={() => onSelectRoom(room.roomCode)}
+                >
+                  <span className="truncate font-semibold">{room.roomName}</span>
+                  <span className="shrink-0 uppercase tracking-[0.12em]">
+                    {room.roomCode}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="rounded-[18px] border border-white/10 bg-white/5 p-3">
+            <div className="flex items-center gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[var(--gold)]/35 bg-[var(--gold)]/15 text-sm font-black text-[var(--gold)]">
+                {initialsFromName(userName)}
+              </div>
+              <div className="min-w-0">
+                <p className="m-0 text-[0.62rem] uppercase tracking-[0.18em] text-[var(--muted-text)]">
+                  Anfitriao
+                </p>
+                <p className="m-0 truncate text-sm font-bold text-[var(--text-color)]">
+                  {userName}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 text-[0.66rem] font-bold uppercase tracking-[0.14em]">
+            <span className="rounded-[12px] border border-emerald-300/20 bg-emerald-400/10 px-2 py-2 text-center text-emerald-200">
+              Ao vivo
+            </span>
+            <span className="rounded-[12px] border border-white/10 bg-white/5 px-2 py-2 text-center text-[var(--muted-text)]">
+              Som {soundEnabled ? "on" : "off"}
+            </span>
+            <span className="col-span-2 rounded-[12px] border border-white/10 bg-white/5 px-2 py-2 text-center text-[var(--muted-text)]">
+              Contraste {highContrast ? "alto" : "premium"}
+            </span>
+          </div>
+        </div>
+      </GlassPanel>
+    </aside>
+  );
+}
+
+function AdminSectionHeader({
+  description,
+  label,
+  title,
+}: {
+  description: string;
+  label: string;
+  title: string;
+}) {
+  return (
+    <GlassPanel className="relative overflow-hidden rounded-[22px] p-5">
+      <div className="absolute inset-y-0 right-0 w-44 bg-[radial-gradient(circle_at_center,rgba(228,180,95,0.22),transparent_68%)]" />
+      <div className="relative">
+        <p className="m-0 text-[0.68rem] font-black uppercase tracking-[0.24em] text-[var(--gold)]">
+          {label}
+        </p>
+        <h2 className="m-0 mt-2 font-display text-[clamp(2rem,3vw,3rem)] leading-none text-[var(--text-color)]">
+          {title}
+        </h2>
+        <p className="m-0 mt-2 max-w-3xl text-sm leading-6 text-[var(--muted-text)]">
+          {description}
+        </p>
+      </div>
+    </GlassPanel>
+  );
+}
+
 type PrizeRoundDraft = {
   clientKey: string;
   id?: string;
@@ -919,6 +1657,10 @@ type PrizeRoundDraft = {
   targetMarks?: number;
   order: number;
   prize: string;
+  description: string;
+  hasPhoto?: boolean;
+  photoDataUrl?: string;
+  removePhoto?: boolean;
   completedAt?: string;
 };
 
@@ -931,7 +1673,7 @@ function AdminEmptyRoomsPage({
   userName: string;
   disabled: boolean;
   error?: string;
-  onCreate: (payload: CreateRoomRequest) => Promise<void>;
+  onCreate: (payload: CreateRoomSetupRequest) => Promise<void>;
 }) {
   return (
     <main className="noise-layer min-h-screen px-4 py-6 md:px-6">
@@ -964,16 +1706,23 @@ function AdminCreateRoomPanel({
   onCreate,
 }: {
   disabled: boolean;
-  onCreate: (payload: CreateRoomRequest) => Promise<void>;
+  onCreate: (payload: CreateRoomSetupRequest) => Promise<void>;
 }) {
-  const [draft, setDraft] = useState<CreateRoomRequest>({
-    name: "",
-    theme: "cassino",
-    maxCardsPerPlayer: 3,
-    allowAutoMark: true,
-    allowManualMark: true,
-  });
-  const canSubmit = draft.name.trim().length >= 3;
+  const [draft, setDraft] = useState<CreateRoomSetupRequest>(
+    createDefaultRoomSetup,
+  );
+  const [photoBusyKey, setPhotoBusyKey] = useState<string>();
+  const canSubmit =
+    draft.name.trim().length >= 3 &&
+    draft.prizeDrafts.length > 0 &&
+    draft.prizeDrafts.every(
+      (prize) =>
+        prize.label.trim().length >= 2 &&
+        prize.prize.trim().length >= 2 &&
+        prize.description.trim().length >= 2,
+    ) &&
+    (!draft.printCardsOnCreate || draft.printableCards.quantity >= 1) &&
+    !photoBusyKey;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -984,122 +1733,542 @@ function AdminCreateRoomPanel({
     await onCreate({
       ...draft,
       name: draft.name.trim(),
+      prizeDrafts: draft.prizeDrafts.map((prize) => ({
+        ...prize,
+        label: prize.label.trim(),
+        prize: prize.prize.trim(),
+        description: prize.description.trim(),
+      })),
+      printableCards: {
+        ...draft.printableCards,
+        title: draft.printableCards.title?.trim() || draft.name.trim(),
+      },
     });
     setDraft((current) => ({
       ...current,
       name: "",
+      printableCards: {
+        ...current.printableCards,
+        title: "",
+      },
     }));
   }
 
+  async function handlePrizePhotoChange(
+    prizeKey: string,
+    file?: File,
+  ) {
+    if (!file) {
+      return;
+    }
+
+    setPhotoBusyKey(prizeKey);
+    try {
+      const photoDataUrl = await compressPrizePhoto(file);
+      setDraft((current) => ({
+        ...current,
+        prizeDrafts: current.prizeDrafts.map((entry) =>
+          entry.clientKey === prizeKey
+            ? { ...entry, photoDataUrl }
+            : entry,
+          ),
+      }));
+    } catch (reason) {
+      window.alert(
+        readErrorMessage(reason, "Nao foi possivel preparar a foto do premio."),
+      );
+    } finally {
+      setPhotoBusyKey(undefined);
+    }
+  }
+
   return (
-    <GlassPanel className="rounded-lg p-5">
-      <form className="space-y-4" onSubmit={handleSubmit}>
+    <GlassPanel className="rounded-[22px] p-5">
+      <form className="space-y-5" onSubmit={handleSubmit}>
         <div>
-          <p className="m-0 text-[0.68rem] uppercase tracking-[0.22em] text-[var(--muted-text)]">
-            Nova sala
+          <p className="premium-label m-0">
+            Setup da nova sala
           </p>
           <p className="m-0 mt-1 text-sm text-[var(--muted-text)]">
-            Prepare outra festa, rodada ou telao em poucos segundos.
+            Configure sala, cartelas, impressao e premio antes de abrir a
+            partida.
           </p>
         </div>
 
-        <label className="block space-y-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-text)]">
-            Nome da sala
-          </span>
-          <input
-            value={draft.name}
-            minLength={3}
-            maxLength={60}
-            onChange={(event) =>
-              setDraft((current) => ({
-                ...current,
-                name: event.target.value,
-              }))
-            }
-            className="w-full rounded-lg border border-white/10 bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--text-color)] outline-none"
-            placeholder="Bingo de sexta"
-          />
-        </label>
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="block space-y-2">
+            <span className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-text)]">
+              Nome da sala
+            </span>
+            <input
+              value={draft.name}
+              minLength={3}
+              maxLength={60}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  name: event.target.value,
+                }))
+              }
+              className="w-full rounded-[14px] border border-[var(--border-color)] bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--text-color)] outline-none"
+              placeholder="Bingo de sexta"
+            />
+          </label>
 
-        <label className="block space-y-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-text)]">
-            Tema
-          </span>
-          <select
-            value={draft.theme}
-            onChange={(event) =>
-              setDraft((current) => ({
-                ...current,
-                theme: event.target.value as ThemeKey,
-              }))
-            }
-            className="w-full rounded-lg border border-white/10 bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--text-color)] outline-none"
-          >
-            {THEME_OPTIONS.map((theme) => (
-              <option key={theme.key} value={theme.key}>
-                {theme.label}
-              </option>
-            ))}
-          </select>
-        </label>
+          <label className="block space-y-2">
+            <span className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-text)]">
+              Tema
+            </span>
+            <select
+              value={draft.theme}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  theme: event.target.value as ThemeKey,
+                }))
+              }
+              className="w-full rounded-[14px] border border-[var(--border-color)] bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--text-color)] outline-none"
+            >
+              {THEME_OPTIONS.map((theme) => (
+                <option key={theme.key} value={theme.key}>
+                  {theme.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
 
-        <div>
-          <p className="m-0 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-text)]">
-            Cartelas por jogador
+        <div className="rounded-[18px] border border-[var(--border-color)] bg-white/5 p-4">
+          <p className="m-0 text-xs font-black uppercase tracking-[0.18em] text-[var(--gold)]">
+            Cartelas digitais
           </p>
-          <div className="mt-2 grid grid-cols-3 gap-2">
-            {[1, 2, 3].map((count) => (
-              <Button
-                key={count}
-                type="button"
-                variant={
-                  draft.maxCardsPerPlayer === count ? "secondary" : "ghost"
-                }
-                disabled={disabled}
-                className="px-3 py-2 text-xs"
-                onClick={() =>
-                  setDraft((current) => ({
-                    ...current,
-                    maxCardsPerPlayer: count,
-                  }))
-                }
-              >
-                {count}
-              </Button>
-            ))}
+          <p className="m-0 mt-1 text-xs leading-5 text-[var(--muted-text)]">
+            Regras usadas quando o jogador entra pelo celular ou abre o QR da
+            cartela impressa.
+          </p>
+
+          <div className="mt-4">
+            <p className="m-0 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-text)]">
+              Cartelas por jogador
+            </p>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {[1, 2, 3].map((count) => (
+                <Button
+                  key={count}
+                  type="button"
+                  variant={
+                    draft.maxCardsPerPlayer === count ? "secondary" : "ghost"
+                  }
+                  disabled={disabled}
+                  className="px-3 py-2 text-xs"
+                  onClick={() =>
+                    setDraft((current) => ({
+                      ...current,
+                      maxCardsPerPlayer: count,
+                    }))
+                  }
+                >
+                  {count}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <Button
+              type="button"
+              variant={draft.allowAutoMark ? "secondary" : "ghost"}
+              disabled={disabled}
+              className="px-3 py-2 text-xs"
+              onClick={() =>
+                setDraft((current) => ({
+                  ...current,
+                  allowAutoMark:
+                    current.allowAutoMark && !current.allowManualMark
+                      ? true
+                      : !current.allowAutoMark,
+                }))
+              }
+            >
+              Auto marcar {draft.allowAutoMark ? "sim" : "nao"}
+            </Button>
+            <Button
+              type="button"
+              variant={draft.allowManualMark ? "secondary" : "ghost"}
+              disabled={disabled}
+              className="px-3 py-2 text-xs"
+              onClick={() =>
+                setDraft((current) => ({
+                  ...current,
+                  allowManualMark:
+                    current.allowManualMark && !current.allowAutoMark
+                      ? true
+                      : !current.allowManualMark,
+                }))
+              }
+            >
+              Marcacao manual {draft.allowManualMark ? "sim" : "nao"}
+            </Button>
           </div>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-2">
-          <Button
-            type="button"
-            variant={draft.allowAutoMark ? "secondary" : "ghost"}
-            disabled={disabled}
-            className="px-3 py-2 text-xs"
-            onClick={() =>
-              setDraft((current) => ({
-                ...current,
-                allowAutoMark: !current.allowAutoMark,
-              }))
-            }
-          >
-            Auto {draft.allowAutoMark ? "ligado" : "desligado"}
-          </Button>
-          <Button
-            type="button"
-            variant={draft.allowManualMark ? "secondary" : "ghost"}
-            disabled={disabled}
-            className="px-3 py-2 text-xs"
-            onClick={() =>
-              setDraft((current) => ({
-                ...current,
-                allowManualMark: !current.allowManualMark,
-              }))
-            }
-          >
-            Manual {draft.allowManualMark ? "ligado" : "desligado"}
-          </Button>
+        <div className="rounded-[18px] border border-[var(--border-color)] bg-white/5 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="m-0 text-xs font-black uppercase tracking-[0.18em] text-[var(--gold)]">
+                Cartelas impressas
+              </p>
+              <p className="m-0 mt-1 text-xs leading-5 text-[var(--muted-text)]">
+                Gera cartelas fisicas com QR seguro ja vinculado a esta sala.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant={draft.printCardsOnCreate ? "secondary" : "ghost"}
+              disabled={disabled}
+              className="px-3 py-2 text-xs"
+              onClick={() =>
+                setDraft((current) => ({
+                  ...current,
+                  printCardsOnCreate: !current.printCardsOnCreate,
+                }))
+              }
+            >
+              {draft.printCardsOnCreate ? "Emitir ao criar" : "Emitir depois"}
+            </Button>
+          </div>
+
+          {draft.printCardsOnCreate ? (
+            <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+              <label className="block space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-text)]">
+                  Quantidade
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={120}
+                  value={draft.printableCards.quantity}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      printableCards: {
+                        ...current.printableCards,
+                        quantity: Number(event.target.value),
+                      },
+                    }))
+                  }
+                  className="w-full rounded-[14px] border border-[var(--border-color)] bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--text-color)] outline-none"
+                />
+              </label>
+              <div>
+                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-text)]">
+                  Por pagina
+                </span>
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  {[2, 4, 6].map((count) => (
+                    <Button
+                      key={count}
+                      type="button"
+                      variant={
+                        draft.printableCards.cardsPerPage === count
+                          ? "secondary"
+                          : "ghost"
+                      }
+                      disabled={disabled}
+                      className="px-3 py-3 text-xs"
+                      onClick={() =>
+                        setDraft((current) => ({
+                          ...current,
+                          printableCards: {
+                            ...current.printableCards,
+                            cardsPerPage: count as 2 | 4 | 6,
+                          },
+                        }))
+                      }
+                    >
+                      {count}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="rounded-[18px] border border-[var(--border-color)] bg-[var(--gold)]/8 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="m-0 text-xs font-black uppercase tracking-[0.18em] text-[var(--gold)]">
+                Premios da sala
+              </p>
+              <p className="m-0 mt-1 text-xs leading-5 text-[var(--muted-text)]">
+                Configure todos os premios agora e marque qual sera sorteado
+                primeiro.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={disabled}
+              className="gap-2 px-3 py-2 text-xs"
+              onClick={() =>
+                setDraft((current) => ({
+                  ...current,
+                  prizeDrafts: [
+                    ...current.prizeDrafts,
+                    createRoomPrizeDraft(current.prizeDrafts.length + 1),
+                  ],
+                }))
+              }
+            >
+              <Plus className="h-4 w-4" />
+              Adicionar premio
+            </Button>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            {draft.prizeDrafts.map((prize, index) => (
+              <div
+                key={prize.clientKey}
+                className={`rounded-[18px] border p-3 ${
+                  draft.firstPrizeKey === prize.clientKey
+                    ? "border-[var(--gold)]/55 bg-[var(--gold)]/12"
+                    : "border-[var(--border-color)] bg-white/5"
+                }`}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[0.62rem] font-black uppercase tracking-[0.16em] text-[var(--muted-text)]">
+                    {draft.firstPrizeKey === prize.clientKey
+                      ? "Primeiro premio"
+                      : `Premio ${index + 1}`}
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant={
+                        draft.firstPrizeKey === prize.clientKey
+                          ? "secondary"
+                          : "ghost"
+                      }
+                      disabled={disabled}
+                      className="px-3 py-2 text-xs"
+                      onClick={() =>
+                        setDraft((current) => ({
+                          ...current,
+                          firstPrizeKey: prize.clientKey,
+                        }))
+                      }
+                    >
+                      Comecar por este
+                    </Button>
+                    {draft.prizeDrafts.length > 1 ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={disabled}
+                        className="px-3 py-2 text-xs"
+                        onClick={() =>
+                          setDraft((current) => {
+                            const nextPrizes = current.prizeDrafts.filter(
+                              (entry) => entry.clientKey !== prize.clientKey,
+                            );
+
+                            return {
+                              ...current,
+                              prizeDrafts: nextPrizes,
+                              firstPrizeKey:
+                                current.firstPrizeKey === prize.clientKey
+                                  ? nextPrizes[0]!.clientKey
+                                  : current.firstPrizeKey,
+                            };
+                          })
+                        }
+                      >
+                        Remover
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="mt-3 grid gap-3">
+                  <label className="block space-y-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-text)]">
+                      Titulo da rodada
+                    </span>
+                    <input
+                      value={prize.label}
+                      minLength={2}
+                      maxLength={40}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          prizeDrafts: current.prizeDrafts.map((entry) =>
+                            entry.clientKey === prize.clientKey
+                              ? { ...entry, label: event.target.value }
+                              : entry,
+                          ),
+                        }))
+                      }
+                      className="w-full rounded-[14px] border border-[var(--border-color)] bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--text-color)] outline-none"
+                      placeholder="Ex.: Rodada relampago"
+                    />
+                  </label>
+
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {CREATE_PRIZE_TARGET_OPTIONS.map((option) => (
+                      <button
+                        key={String(option.value)}
+                        type="button"
+                        disabled={disabled}
+                        className={`rounded-[14px] border px-3 py-2 text-left transition ${
+                          prize.target === option.value
+                            ? "border-[var(--gold)]/55 bg-[var(--gold)]/18 text-[var(--text-color)]"
+                            : "border-[var(--border-color)] bg-white/5 text-[var(--muted-text)] hover:border-[var(--gold)]/35"
+                        }`}
+                        onClick={() =>
+                          setDraft((current) => ({
+                            ...current,
+                            prizeDrafts: current.prizeDrafts.map((entry) =>
+                              entry.clientKey === prize.clientKey
+                                ? {
+                                    ...entry,
+                                    target: option.value,
+                                    label:
+                                      entry.label.trim().length > 0
+                                        ? entry.label
+                                        : createPrizeTargetLabel(
+                                            option.value,
+                                            index + 1,
+                                          ),
+                                  }
+                                : entry,
+                            ),
+                          }))
+                        }
+                      >
+                        <span className="block text-xs font-black">
+                          {option.label}
+                        </span>
+                        <span className="mt-1 block text-[0.62rem]">
+                          {option.detail}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <label className="block space-y-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-text)]">
+                      Nome do premio
+                    </span>
+                    <input
+                      value={prize.prize}
+                      minLength={2}
+                      maxLength={120}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          prizeDrafts: current.prizeDrafts.map((entry) =>
+                            entry.clientKey === prize.clientKey
+                              ? { ...entry, prize: event.target.value }
+                              : entry,
+                          ),
+                        }))
+                      }
+                      className="w-full rounded-[14px] border border-[var(--border-color)] bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--text-color)] outline-none"
+                      placeholder="Ex.: Air fryer, cesta especial, pix premiado"
+                    />
+                  </label>
+
+                  <label className="block space-y-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-text)]">
+                      Breve descricao
+                    </span>
+                    <textarea
+                      value={prize.description}
+                      minLength={2}
+                      maxLength={220}
+                      rows={2}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          prizeDrafts: current.prizeDrafts.map((entry) =>
+                            entry.clientKey === prize.clientKey
+                              ? { ...entry, description: event.target.value }
+                              : entry,
+                          ),
+                        }))
+                      }
+                      className="w-full resize-none rounded-[14px] border border-[var(--border-color)] bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--text-color)] outline-none"
+                      placeholder="Ex.: Vai com acessorios, embalagem premium e entrega na hora."
+                    />
+                  </label>
+
+                  <div className="rounded-[16px] border border-white/10 bg-white/5 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="m-0 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-text)]">
+                          Foto do premio
+                        </p>
+                        <p className="m-0 mt-1 text-xs leading-5 text-[var(--muted-text)]">
+                          Tire a foto pelo celular para usar depois no telao.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <label className="inline-flex cursor-pointer items-center gap-2 rounded-[14px] border border-[var(--gold)]/35 bg-[var(--gold)]/12 px-3 py-2 text-xs font-semibold text-[var(--text-color)]">
+                          <Camera className="h-4 w-4" />
+                          {prize.photoDataUrl ? "Trocar foto" : "Tirar foto"}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            className="hidden"
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              void handlePrizePhotoChange(prize.clientKey, file);
+                              event.target.value = "";
+                            }}
+                          />
+                        </label>
+                        {prize.photoDataUrl ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            disabled={disabled || photoBusyKey === prize.clientKey}
+                            className="px-3 py-2 text-xs"
+                            onClick={() =>
+                              setDraft((current) => ({
+                                ...current,
+                                prizeDrafts: current.prizeDrafts.map((entry) =>
+                                  entry.clientKey === prize.clientKey
+                                    ? { ...entry, photoDataUrl: undefined }
+                                    : entry,
+                                ),
+                              }))
+                            }
+                          >
+                            Remover foto
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {prize.photoDataUrl ? (
+                      <img
+                        src={prize.photoDataUrl}
+                        alt={`Preview do premio ${prize.prize || prize.label}`}
+                        className="mt-3 h-36 w-full rounded-[14px] object-cover"
+                      />
+                    ) : (
+                      <p className="m-0 mt-3 text-xs text-[var(--muted-text)]">
+                        A foto aparece aqui e depois entra no destaque do telao.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         <Button
@@ -1107,7 +2276,11 @@ function AdminCreateRoomPanel({
           disabled={disabled || !canSubmit}
           type="submit"
         >
-          {disabled ? "Criando..." : "Criar sala"}
+          {disabled
+            ? "Criando..."
+            : draft.printCardsOnCreate
+              ? "Criar sala e emitir cartelas"
+              : "Criar sala configurada"}
         </Button>
       </form>
     </GlassPanel>
@@ -1534,6 +2707,8 @@ function toPrizeRoundDraft(round: PrizeRoundConfig): PrizeRoundDraft {
         : round.targetMarks,
     order: round.order,
     prize: round.prize,
+    description: round.description ?? "",
+    hasPhoto: round.hasPhoto,
     completedAt: round.completedAt,
   };
 }
@@ -1546,6 +2721,7 @@ function createPrizeRoundDraft(nextOrder: number): PrizeRoundDraft {
     targetMarks: 3,
     order: nextOrder,
     prize: "Brinde surpresa para a mesa vencedora",
+    description: "Conte rapidamente o que sera entregue para quem vencer.",
   };
 }
 
@@ -1563,6 +2739,18 @@ function removeDraftRound(rounds: PrizeRoundDraft[], roundKey: string) {
   return rounds.filter((round) => round.clientKey !== roundKey);
 }
 
+function moveDraftRoundToFront(rounds: PrizeRoundDraft[], roundKey: string) {
+  const selected = rounds.find((round) => round.clientKey === roundKey);
+  if (!selected) {
+    return rounds;
+  }
+
+  return [
+    selected,
+    ...rounds.filter((round) => round.clientKey !== roundKey),
+  ].map((round, index) => ({ ...round, order: index + 1 }));
+}
+
 function serializePrizeRoundDrafts(
   rounds: PrizeRoundDraft[],
 ): UpdatePrizeRoundsRequest {
@@ -1574,8 +2762,58 @@ function serializePrizeRoundDrafts(
       targetMarks:
         round.pattern === "marked_count" ? (round.targetMarks ?? 3) : undefined,
       prize: round.prize.trim(),
+      description: round.description.trim() || undefined,
+      photoDataUrl: round.photoDataUrl,
+      removePhoto: round.removePhoto || undefined,
     })),
   };
+}
+
+async function compressPrizePhoto(file: File) {
+  const objectUrl = URL.createObjectURL(file);
+
+  try {
+    const image = await loadImageElement(objectUrl);
+    const { width, height } = fitImageInsideBox(
+      image.naturalWidth,
+      image.naturalHeight,
+      1440,
+    );
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d");
+    if (!context) {
+      throw new Error("Nao foi possivel preparar a foto do premio.");
+    }
+
+    context.drawImage(image, 0, 0, width, height);
+    return canvas.toDataURL("image/jpeg", 0.82);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+function fitImageInsideBox(width: number, height: number, maxEdge: number) {
+  const safeWidth = Math.max(width, 1);
+  const safeHeight = Math.max(height, 1);
+  const scale = Math.min(1, maxEdge / Math.max(safeWidth, safeHeight));
+
+  return {
+    width: Math.max(1, Math.round(safeWidth * scale)),
+    height: Math.max(1, Math.round(safeHeight * scale)),
+  };
+}
+
+function loadImageElement(src: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () =>
+      reject(new Error("Nao foi possivel carregar a foto selecionada."));
+    image.src = src;
+  });
 }
 
 function prizeRuleLabel(
@@ -1717,11 +2955,11 @@ function AdminMetricTile({
   detail: string;
 }) {
   return (
-    <div className="min-w-0 border-l border-white/10 pl-3">
-      <p className="m-0 text-[0.62rem] font-bold uppercase tracking-[0.18em] text-[var(--muted-text)]">
+    <div className="min-w-0 rounded-[18px] border border-[var(--border-color)] bg-white/5 px-4 py-4">
+      <p className="m-0 text-[0.62rem] font-black uppercase tracking-[0.18em] text-[var(--gold)]">
         {label}
       </p>
-      <p className="m-0 mt-1 truncate font-display text-2xl leading-none text-[var(--text-color)]">
+      <p className="m-0 mt-2 truncate font-display text-2xl font-black leading-none text-[var(--text-color)]">
         {value}
       </p>
       <p className="m-0 mt-1 truncate text-xs text-[var(--muted-text)]">
@@ -1743,8 +2981,8 @@ function OverviewCard({
   detail: string;
 }) {
   return (
-    <div className="rounded-lg border border-white/8 bg-white/5 px-4 py-4">
-      <div className="flex items-center gap-2 text-[0.65rem] uppercase tracking-[0.18em] text-[var(--muted-text)]">
+    <div className="rounded-[18px] border border-[var(--border-color)] bg-white/5 px-4 py-4">
+      <div className="flex items-center gap-2 text-[0.65rem] font-bold uppercase tracking-[0.18em] text-[var(--gold)]">
         {icon}
         <span>{label}</span>
       </div>
@@ -2203,11 +3441,11 @@ function AdminPrizeControlPanel({
               No telão agora
             </p>
             <p className="m-0 mt-1 text-sm font-semibold text-[var(--text-color)]">
-              {match.prizeShowcase.label} -{" "}
-              {prizeRuleLabel(match.prizeShowcase)}
+              {match.prizeShowcase.prize} - {prizeRuleLabel(match.prizeShowcase)}
             </p>
             <p className="m-0 mt-1 text-xs text-[var(--muted-text)]">
-              {match.prizeShowcase.prize}
+              {match.prizeShowcase.description ??
+                `${match.prizeShowcase.label} pronta para o destaque.`}
             </p>
           </div>
         ) : null}
@@ -2328,9 +3566,21 @@ function AdminPrizeCommandPanel({
   const [drafts, setDrafts] = useState(() =>
     clonePrizeRounds(match.prizeRounds),
   );
+  const [photoBusyKey, setPhotoBusyKey] = useState<string>();
+  const [photoPreviews, setPhotoPreviews] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setDrafts(clonePrizeRounds(match.prizeRounds));
+  }, [match.prizeRounds]);
+
+  useEffect(() => {
+    setPhotoPreviews((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(([roundId]) =>
+          match.prizeRounds.some((round) => round.id === roundId),
+        ),
+      ),
+    );
   }, [match.prizeRounds]);
 
   const uncompletedRounds = match.prizeRounds.filter(
@@ -2347,6 +3597,8 @@ function AdminPrizeCommandPanel({
         ? Math.min(featuredIndex + 1, Math.max(uncompletedRounds.length - 1, 0))
         : 0
     ];
+  const canReorderPrizes =
+    match.drawnNumbers.length === 0 && match.status !== "completed";
 
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -2368,6 +3620,70 @@ function AdminPrizeCommandPanel({
     setDrafts(nextDrafts);
     if (round.id) {
       await onUpdate(serializePrizeRoundDrafts(nextDrafts));
+    }
+  }
+
+  async function handleMovePrizeFirst(round: PrizeRoundDraft) {
+    const nextDrafts = moveDraftRoundToFront(drafts, round.clientKey);
+    setDrafts(nextDrafts);
+    await onUpdate(serializePrizeRoundDrafts(nextDrafts));
+  }
+
+  async function handlePrizePhotoCapture(
+    round: PrizeRoundDraft,
+    file?: File,
+  ) {
+    if (!file) {
+      return;
+    }
+
+    setPhotoBusyKey(round.clientKey);
+    try {
+      const photoDataUrl = await compressPrizePhoto(file);
+      const nextDrafts = updateDraftRound(drafts, round.clientKey, {
+        photoDataUrl,
+        hasPhoto: true,
+        removePhoto: false,
+      });
+
+      setDrafts(nextDrafts);
+      if (round.id) {
+        setPhotoPreviews((current) => ({
+          ...current,
+          [round.id!]: photoDataUrl,
+        }));
+      }
+      await onUpdate(serializePrizeRoundDrafts(nextDrafts));
+    } catch (reason) {
+      window.alert(
+        readErrorMessage(reason, "Nao foi possivel salvar a foto do premio."),
+      );
+    } finally {
+      setPhotoBusyKey(undefined);
+    }
+  }
+
+  async function handleRemovePrizePhoto(round: PrizeRoundDraft) {
+    try {
+      const nextDrafts = updateDraftRound(drafts, round.clientKey, {
+        photoDataUrl: undefined,
+        hasPhoto: false,
+        removePhoto: true,
+      });
+
+      setDrafts(nextDrafts);
+      if (round.id) {
+        setPhotoPreviews((current) => {
+          const next = { ...current };
+          delete next[round.id!];
+          return next;
+        });
+      }
+      await onUpdate(serializePrizeRoundDrafts(nextDrafts));
+    } catch (reason) {
+      window.alert(
+        readErrorMessage(reason, "Nao foi possivel remover a foto do premio."),
+      );
     }
   }
 
@@ -2445,11 +3761,11 @@ function AdminPrizeCommandPanel({
               No telao agora
             </p>
             <p className="m-0 mt-1 text-sm font-semibold text-[var(--text-color)]">
-              {match.prizeShowcase.label} -{" "}
-              {prizeRuleLabel(match.prizeShowcase)}
+              {match.prizeShowcase.prize} - {prizeRuleLabel(match.prizeShowcase)}
             </p>
             <p className="m-0 mt-1 text-xs text-[var(--muted-text)]">
-              {match.prizeShowcase.prize}
+              {match.prizeShowcase.description ??
+                `${match.prizeShowcase.label} pronta para o destaque.`}
             </p>
           </div>
         ) : null}
@@ -2469,6 +3785,17 @@ function AdminPrizeCommandPanel({
                       : "Novo premio"}
                 </span>
                 <div className="flex flex-wrap gap-2">
+                  {!round.completedAt ? (
+                    <Button
+                      type="button"
+                      variant={index === 0 ? "secondary" : "ghost"}
+                      disabled={disabled || !canReorderPrizes || index === 0}
+                      className="gap-2 px-3 py-2 text-xs"
+                      onClick={() => void handleMovePrizeFirst(round)}
+                    >
+                      Comecar por este
+                    </Button>
+                  ) : null}
                   {round.id ? (
                     <Button
                       type="button"
@@ -2501,31 +3828,61 @@ function AdminPrizeCommandPanel({
               </div>
 
               <div className="mt-3 grid gap-3">
-                <input
-                  value={round.label}
-                  maxLength={40}
-                  onChange={(event) =>
-                    setDrafts((current) =>
-                      updateDraftRound(current, round.clientKey, {
-                        label: event.target.value,
-                      }),
-                    )
-                  }
-                  className="w-full rounded-md border border-white/10 bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--text-color)] outline-none"
-                />
-                <textarea
-                  value={round.prize}
-                  maxLength={120}
-                  rows={2}
-                  onChange={(event) =>
-                    setDrafts((current) =>
-                      updateDraftRound(current, round.clientKey, {
-                        prize: event.target.value,
-                      }),
-                    )
-                  }
-                  className="w-full resize-none rounded-md border border-white/10 bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--text-color)] outline-none"
-                />
+                <label className="block space-y-2">
+                  <span className="text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-[var(--muted-text)]">
+                    Titulo da rodada
+                  </span>
+                  <input
+                    value={round.label}
+                    maxLength={40}
+                    onChange={(event) =>
+                      setDrafts((current) =>
+                        updateDraftRound(current, round.clientKey, {
+                          label: event.target.value,
+                        }),
+                      )
+                    }
+                    className="w-full rounded-md border border-white/10 bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--text-color)] outline-none"
+                    placeholder="Ex.: Rodada relampago"
+                  />
+                </label>
+                <label className="block space-y-2">
+                  <span className="text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-[var(--muted-text)]">
+                    Nome do premio
+                  </span>
+                  <input
+                    value={round.prize}
+                    maxLength={120}
+                    onChange={(event) =>
+                      setDrafts((current) =>
+                        updateDraftRound(current, round.clientKey, {
+                          prize: event.target.value,
+                        }),
+                      )
+                    }
+                    className="w-full rounded-md border border-white/10 bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--text-color)] outline-none"
+                    placeholder="Ex.: Air fryer, pix premiado, cesta especial"
+                  />
+                </label>
+                <label className="block space-y-2">
+                  <span className="text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-[var(--muted-text)]">
+                    Breve descricao
+                  </span>
+                  <textarea
+                    value={round.description}
+                    maxLength={220}
+                    rows={2}
+                    onChange={(event) =>
+                      setDrafts((current) =>
+                        updateDraftRound(current, round.clientKey, {
+                          description: event.target.value,
+                        }),
+                      )
+                    }
+                    className="w-full resize-none rounded-md border border-white/10 bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--text-color)] outline-none"
+                    placeholder="Ex.: Premio lacrado, entrega na hora e pronto para foto oficial."
+                  />
+                </label>
                 <div className="grid gap-2 sm:grid-cols-[1fr_6.2rem]">
                   <select
                     value={round.pattern}
@@ -2564,6 +3921,66 @@ function AdminPrizeCommandPanel({
                     }
                     className="w-full rounded-md border border-white/10 bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--text-color)] outline-none disabled:opacity-40"
                   />
+                </div>
+                <div className="rounded-[18px] border border-white/10 bg-white/5 p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="m-0 text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-[var(--muted-text)]">
+                        Foto do premio
+                      </p>
+                      <p className="m-0 mt-1 text-xs leading-5 text-[var(--muted-text)]">
+                        Tire a foto pelo celular para mostrar esse premio no telao.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <label className="inline-flex cursor-pointer items-center gap-2 rounded-[14px] border border-[var(--gold)]/35 bg-[var(--gold)]/12 px-3 py-2 text-xs font-semibold text-[var(--text-color)]">
+                        <Camera className="h-4 w-4" />
+                        {round.hasPhoto || round.photoDataUrl ? "Trocar foto" : "Tirar foto"}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            void handlePrizePhotoCapture(round, file);
+                            event.target.value = "";
+                          }}
+                        />
+                      </label>
+                      {round.hasPhoto || round.photoDataUrl ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          disabled={disabled || photoBusyKey === round.clientKey}
+                          className="px-3 py-2 text-xs"
+                          onClick={() => void handleRemovePrizePhoto(round)}
+                        >
+                          Remover foto
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {round.id && photoPreviews[round.id] ? (
+                    <img
+                      src={photoPreviews[round.id]}
+                      alt={`Preview do premio ${round.prize || round.label}`}
+                      className="mt-3 h-36 w-full rounded-[14px] object-cover"
+                    />
+                  ) : round.photoDataUrl ? (
+                    <img
+                      src={round.photoDataUrl}
+                      alt={`Preview do premio ${round.prize || round.label}`}
+                      className="mt-3 h-36 w-full rounded-[14px] object-cover"
+                    />
+                  ) : (
+                    <div className="mt-3 rounded-[14px] border border-dashed border-white/10 px-3 py-4 text-xs text-[var(--muted-text)]">
+                      {round.hasPhoto
+                        ? "Foto ja salva para este premio. Quando voce abrir o destaque, ela aparece no telao."
+                        : "Ainda sem foto. Use a camera do celular para deixar o anuncio mais visual."}
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="m-0 text-xs text-[var(--muted-text)]">
@@ -2653,6 +4070,17 @@ function matchStatusLabel(status: RoomSnapshot["match"]["status"]) {
   };
 
   return labels[status];
+}
+
+function initialsFromName(name: string) {
+  const initials = name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("");
+
+  return initials || "A";
 }
 
 function historyActionLabel(item: AdminHistoryItemDto) {

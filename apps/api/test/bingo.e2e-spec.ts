@@ -14,6 +14,8 @@ const ranges = {
   G: [46, 60],
   O: [61, 75],
 } as const;
+const samplePrizePhoto =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WnRk7wAAAAASUVORK5CYII=';
 
 jest.setTimeout(30_000);
 
@@ -84,8 +86,20 @@ describe('Bingo API (e2e)', () => {
         maxCardsPerPlayer: 3,
         allowAutoMark: true,
         allowManualMark: true,
+        prizeRounds: [
+          {
+            label: 'Premio de 5 numeros',
+            pattern: 'marked_count',
+            targetMarks: 5,
+            prize: 'Vale familia',
+            description: 'Rodada curta para abrir a noite com premio simples.',
+          },
+        ],
       })
       .expect(201);
+
+    expect(extraRoom.body.room.match.prizeRounds).toHaveLength(1);
+    expect(extraRoom.body.room.match.prizeRounds[0].targetMarks).toBe(5);
 
     const deletedRoom = await request(app.getHttpServer())
       .delete(`/api/v1/rooms/${extraRoom.body.room.roomId}`)
@@ -118,25 +132,66 @@ describe('Bingo API (e2e)', () => {
             pattern: 'marked_count',
             targetMarks: 3,
             prize: 'Vale presente surpresa',
+            description: 'Cartao especial para a primeira rodada da noite.',
+            photoDataUrl: samplePrizePhoto,
           },
           {
             label: 'Rodada surpresa relampago',
             pattern: 'marked_count',
             targetMarks: 5,
             prize: 'Combo especial da familia',
+            description: 'Combo com brindes para a mesa vencedora.',
           },
         ],
       })
       .expect(200);
 
     expect(configuredPrize.body.room.match.prizeRounds[0].targetMarks).toBe(3);
+    expect(configuredPrize.body.room.match.prizeRounds[0].hasPhoto).toBe(true);
+    expect(configuredPrize.body.room.match.prizeRounds[0].description).toBe(
+      'Cartao especial para a primeira rodada da noite.',
+    );
     expect(
       configuredPrize.body.room.match.prizeRounds.some(
-        (entry: { label: string; targetMarks?: number }) =>
+        (entry: { label: string; targetMarks?: number; description?: string }) =>
           entry.label === 'Rodada surpresa relampago' &&
-          entry.targetMarks === 5,
+          entry.targetMarks === 5 &&
+          entry.description === 'Combo com brindes para a mesa vencedora.',
       ),
     ).toBe(true);
+
+    const surprisePrize = configuredPrize.body.room.match.prizeRounds.find(
+      (entry: { label: string }) =>
+        entry.label === 'Rodada surpresa relampago',
+    );
+    const reorderedPrize = await request(app.getHttpServer())
+      .patch(`/api/v1/rooms/${room.roomId}/prize-rounds`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        rounds: [
+          {
+            id: surprisePrize.id,
+            label: 'Rodada surpresa relampago',
+            pattern: 'marked_count',
+            targetMarks: 5,
+            prize: 'Combo especial da familia',
+            description: 'Combo com brindes para a mesa vencedora.',
+          },
+          {
+            id: firstPrize.id,
+            label: 'Premio relampago',
+            pattern: 'marked_count',
+            targetMarks: 3,
+            prize: 'Vale presente surpresa',
+            description: 'Cartao especial para a primeira rodada da noite.',
+          },
+        ],
+      })
+      .expect(200);
+
+    expect(reorderedPrize.body.room.match.currentPrizeRoundId).toBe(
+      surprisePrize.id,
+    );
 
     const removedPrize = await request(app.getHttpServer())
       .patch(`/api/v1/rooms/${room.roomId}/prize-rounds`)
@@ -149,6 +204,7 @@ describe('Bingo API (e2e)', () => {
             pattern: 'marked_count',
             targetMarks: 3,
             prize: 'Vale presente surpresa',
+            description: 'Cartao especial para a primeira rodada da noite.',
           },
         ],
       })
@@ -172,6 +228,12 @@ describe('Bingo API (e2e)', () => {
 
     expect(showcasedPrize.body.room.match.prizeShowcase.roundId).toBe(
       firstPrize.id,
+    );
+    expect(showcasedPrize.body.room.match.prizeShowcase.photoDataUrl).toBe(
+      samplePrizePhoto,
+    );
+    expect(showcasedPrize.body.room.match.prizeShowcase.description).toBe(
+      'Cartao especial para a primeira rodada da noite.',
     );
 
     const stageMoment = await request(app.getHttpServer())

@@ -11,6 +11,7 @@ import type {
 import { CelebrationLayer } from '@/components/celebration-layer';
 import { DrawSpotlight } from '@/components/draw-spotlight';
 import { LoadingState } from '@/components/loading-state';
+import { ProximityTicker } from '@/components/proximity-ticker';
 import { QRJoinPanel } from '@/components/qr-join-panel';
 import { RecentDrawsRail } from '@/components/recent-draws-rail';
 import { WinnerOverlay } from '@/components/winner-overlay';
@@ -84,7 +85,7 @@ export function TvRoomPage() {
     !isPresentationIdle && room.match.recentDrawsVisible && !stageMoment;
   const gridClassName = isPresentationIdle
     ? 'mx-auto grid min-h-[calc(100vh-3rem)] max-w-[1180px] gap-6'
-    : 'mx-auto grid min-h-[calc(100vh-3rem)] max-w-[1600px] gap-6 xl:grid-cols-[1.55fr_0.95fr]';
+    : 'mx-auto grid min-h-[calc(100vh-3rem)] max-w-[1600px] gap-6 xl:grid-cols-[1.7fr_0.78fr]';
 
   return (
     <main className="noise-layer min-h-screen px-6 py-6">
@@ -115,14 +116,14 @@ export function TvRoomPage() {
                   {room.roomName}
                 </h1>
               </div>
-              <Button
-                variant="secondary"
+              <button
+                className="rounded-[14px] border border-red-300/35 bg-red-500/18 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-red-50 shadow-[0_0_28px_rgba(248,113,113,0.2)] transition hover:bg-red-500/26"
                 onClick={() =>
                   void document.documentElement.requestFullscreen?.()
                 }
               >
-                Tela cheia
-              </Button>
+                Ao vivo
+              </button>
             </div>
           </GlassPanel>
 
@@ -173,8 +174,41 @@ export function TvRoomPage() {
         </section>
 
         {!isMatchEnded ? (
-          <aside className="grid gap-5">
-            <QRJoinPanel room={room} />
+          <aside className="grid content-start gap-5">
+            <QRJoinPanel room={room} showTvButton={false} />
+            <GlassPanel className="rounded-[22px] p-4">
+              <p className="premium-label m-0">Ultimos sorteios</p>
+              <div className="mt-4">
+                {room.match.recentDraws.length > 0 ? (
+                  <RecentDrawsRail draws={room.match.recentDraws.slice(0, 5)} />
+                ) : (
+                  <p className="m-0 text-sm text-[var(--muted-text)]">
+                    Aguardando os primeiros numeros.
+                  </p>
+                )}
+              </div>
+            </GlassPanel>
+            <ProximityTicker entries={room.match.proximityBoard.slice(0, 3)} />
+            <GlassPanel className="rounded-[22px] p-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-[16px] border border-emerald-300/20 bg-emerald-400/10 p-4 text-center">
+                  <p className="m-0 text-[0.62rem] uppercase tracking-[0.18em] text-emerald-100">
+                    Online
+                  </p>
+                  <p className="m-0 mt-1 font-display text-4xl font-black text-emerald-200">
+                    {room.match.playersOnline}
+                  </p>
+                </div>
+                <div className="rounded-[16px] border border-[var(--gold)]/25 bg-[var(--gold)]/10 p-4 text-center">
+                  <p className="m-0 text-[0.62rem] uppercase tracking-[0.18em] text-[var(--gold)]">
+                    Rodada
+                  </p>
+                  <p className="m-0 mt-1 font-display text-4xl font-black text-[var(--text-color)]">
+                    {room.match.drawnNumbers.length}
+                  </p>
+                </div>
+              </div>
+            </GlassPanel>
           </aside>
         ) : null}
       </div>
@@ -425,25 +459,54 @@ function StageMomentDisplay({ moment }: { moment: StageMomentDto }) {
 function PrizeShowcaseDisplay({ prize }: { prize: PrizeShowcaseDto }) {
   return (
     <GlassPanel className="relative overflow-hidden rounded-[34px] border-amber-200/20 bg-[linear-gradient(135deg,rgba(255,214,128,0.2),rgba(89,255,208,0.08))] p-7">
-      <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_24rem] xl:items-center">
         <div>
           <p className="m-0 text-[0.74rem] uppercase tracking-[0.32em] text-amber-100">
             Prêmio em destaque
           </p>
-          <h2 className="m-0 mt-3 font-display text-[clamp(2.8rem,6vw,5.6rem)] leading-none text-gradient">
-            {prize.label}
-          </h2>
-          <p className="m-0 mt-4 max-w-3xl text-2xl font-bold leading-tight text-[var(--text-color)]">
+          <div className="mt-3 inline-flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-white/12 bg-slate-950/30 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-white/80">
+              {prize.label}
+            </span>
+            <span className="rounded-full border border-amber-100/20 bg-amber-200/10 px-3 py-1 text-[0.68rem] uppercase tracking-[0.18em] text-amber-50">
+              {prizeRuleLabel(prize)}
+            </span>
+          </div>
+          <h2 className="m-0 mt-4 font-display text-[clamp(2.8rem,6vw,5.6rem)] leading-none text-gradient">
             {prize.prize}
+          </h2>
+          <p className="m-0 mt-4 max-w-3xl text-[clamp(1.1rem,2.4vw,1.9rem)] font-bold leading-tight text-[var(--text-color)]">
+            {prize.description ??
+              'Premio preparado para a proxima chamada do narrador.'}
           </p>
+          <div className="mt-5 rounded-[24px] border border-white/12 bg-slate-950/35 px-5 py-4">
+            <p className="m-0 text-[0.7rem] uppercase tracking-[0.22em] text-[var(--muted-text)]">
+              Regra para ganhar
+            </p>
+            <p className="m-0 mt-2 font-display text-3xl font-bold text-amber-100">
+              {prizeRuleLabel(prize)}
+            </p>
+          </div>
         </div>
-        <div className="rounded-[28px] border border-white/12 bg-slate-950/45 px-6 py-5 text-center">
-          <p className="m-0 text-[0.7rem] uppercase tracking-[0.22em] text-[var(--muted-text)]">
-            Regra para ganhar
-          </p>
-          <p className="m-0 mt-2 font-display text-3xl font-bold text-amber-100">
-            {prizeRuleLabel(prize)}
-          </p>
+        <div className="relative overflow-hidden rounded-[30px] border border-white/12 bg-slate-950/40 p-3 shadow-[0_24px_80px_rgba(8,17,26,0.35)]">
+          {prize.photoDataUrl ? (
+            <img
+              src={prize.photoDataUrl}
+              alt={`Foto do premio ${prize.prize}`}
+              className="h-full min-h-[18rem] w-full rounded-[24px] object-cover"
+            />
+          ) : (
+            <div className="flex min-h-[18rem] items-center justify-center rounded-[24px] border border-dashed border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] px-6 text-center">
+              <div>
+                <p className="m-0 text-[0.72rem] uppercase tracking-[0.22em] text-[var(--muted-text)]">
+                  Destaque visual
+                </p>
+                <p className="m-0 mt-3 text-lg font-semibold text-[var(--text-color)]">
+                  Foto do premio ainda nao enviada.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </GlassPanel>

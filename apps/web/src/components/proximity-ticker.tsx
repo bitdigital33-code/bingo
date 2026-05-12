@@ -10,10 +10,8 @@ export function ProximityTicker({
   onBroadcastAlert?: (entry: ProximityEntry) => void;
 }) {
   return (
-    <GlassPanel className="rounded-[30px] p-4">
-      <p className="m-0 text-[0.68rem] uppercase tracking-[0.22em] text-[var(--muted-text)]">
-        Radar da boa
-      </p>
+    <GlassPanel className="rounded-[22px] p-4">
+      <p className="premium-label m-0">Na boa</p>
       <div className="mt-4 space-y-3">
         {entries.map((entry, index) => (
           <motion.div
@@ -21,14 +19,14 @@ export function ProximityTicker({
             initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.22, delay: index * 0.04 }}
-            className="rounded-[24px] border border-white/8 bg-white/5 px-4 py-3"
+            className="rounded-[16px] border border-[var(--border-color)] bg-white/5 px-4 py-3"
           >
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-sm font-black text-[var(--text-color)]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--gold)]/30 bg-[linear-gradient(180deg,rgba(228,180,95,0.32),rgba(77,50,12,0.78))] text-sm font-black text-white">
                 {index + 1}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="m-0 text-sm font-semibold text-[var(--text-color)]">
+                <p className="m-0 text-sm font-bold text-[var(--text-color)]">
                   {nearWinTitle(entry)}
                 </p>
                 <p className="m-0 text-xs text-[var(--muted-text)]">

@@ -16,7 +16,6 @@ import type {
   StageMomentKey,
   StageMomentRequest,
   PrizeShowcaseRequest,
-  PrizeRoundConfig,
   TvRecentDrawsRequest,
   UpdatePrizeRoundsRequest,
   UpdatePlayerRequest,
@@ -35,6 +34,7 @@ import type {
   StoredMatch,
   StoredPlayerSession,
   StoredPrintedCard,
+  StoredPrizeRound,
   StoredRoom,
   StoredTenant,
   StoredUser,
@@ -359,7 +359,7 @@ export class PrismaBingoStoreService {
       });
 
       await tx.prizeRound.createMany({
-        data: this.createDefaultPrizeRounds(match.id),
+        data: this.createInitialPrizeRounds(match.id, payload.prizeRounds),
       });
 
       return { room, matchId: match.id };
@@ -412,11 +412,6 @@ export class PrismaBingoStoreService {
         },
       });
 
-      let nextOrder =
-        existingRounds.reduce(
-          (highest, round) => Math.max(highest, round.order),
-          0,
-        ) + 1;
       const incomingExistingIds = new Set(
         payload.rounds
           .map((round) => round.id)
@@ -449,14 +444,22 @@ export class PrismaBingoStoreService {
         });
       }
 
-      for (const round of payload.rounds) {
-        const data = {
-          label: round.label,
-          pattern: round.pattern as PrismaPrizePattern,
-          targetMarks:
-            round.pattern === 'marked_count' ? (round.targetMarks ?? 3) : null,
-          prize: round.prize,
-        };
+      const keptExistingRounds = existingRounds.filter((round) =>
+        incomingExistingIds.has(round.id),
+      );
+      for (const [index, round] of keptExistingRounds.entries()) {
+        await tx.prizeRound.update({
+          where: {
+            id: round.id,
+          },
+          data: {
+            order: 10_000 + index,
+          },
+        });
+      }
+
+      for (const [index, round] of payload.rounds.entries()) {
+        const data = this.toPrizeRoundWriteData(round, index + 1);
 
         if (round.id) {
           await tx.prizeRound.update({
@@ -471,11 +474,9 @@ export class PrismaBingoStoreService {
         await tx.prizeRound.create({
           data: {
             matchId,
-            order: nextOrder,
             ...data,
           },
         });
-        nextOrder += 1;
       }
     });
 
@@ -1115,15 +1116,18 @@ export class PrismaBingoStoreService {
     stageMomentVisible: boolean;
     recentDrawsVisible: boolean;
     tvResetAt: Date | null;
-    prizeRounds: Array<{
-      id: string;
-      label: string;
-      pattern: string;
-      targetMarks: number | null;
-      order: number;
-      prize: string;
-      completedAt: Date | null;
-    }>;
+      prizeRounds: Array<{
+        id: string;
+        label: string;
+        pattern: string;
+        targetMarks: number | null;
+        order: number;
+        prize: string;
+        description: string | null;
+        photoDataUrl: string | null;
+        photoUpdatedAt: Date | null;
+        completedAt: Date | null;
+      }>;
     drawEvents: Array<{
       id: string;
       matchId: string;
@@ -1159,12 +1163,15 @@ export class PrismaBingoStoreService {
           ({
             id: round.id,
             label: round.label,
-            pattern: round.pattern as PrizeRoundConfig['pattern'],
+            pattern: round.pattern as StoredPrizeRound['pattern'],
             targetMarks: round.targetMarks ?? undefined,
             order: round.order,
             prize: round.prize,
+            description: round.description ?? undefined,
+            photoDataUrl: round.photoDataUrl ?? undefined,
+            photoUpdatedAt: round.photoUpdatedAt?.toISOString(),
             completedAt: round.completedAt?.toISOString(),
-          }) satisfies PrizeRoundConfig,
+          }) satisfies StoredPrizeRound,
       ),
       drawEvents: match.drawEvents.map((draw) => this.toStoredDrawEvent(draw)),
     } satisfies StoredMatch;
@@ -1386,6 +1393,54 @@ export class PrismaBingoStoreService {
         prize: 'Super premio da noite',
       },
     ];
+  }
+
+  private createInitialPrizeRounds(
+    matchId: string,
+    rounds?: CreateRoomRequest['prizeRounds'],
+  ): Prisma.PrizeRoundCreateManyInput[] {
+    if (!rounds?.length) {
+      return this.createDefaultPrizeRounds(matchId);
+    }
+
+    return rounds.map((round, index) => ({
+      matchId,
+      label: round.label.trim(),
+      pattern: round.pattern as PrismaPrizePattern,
+      targetMarks:
+        round.pattern === 'marked_count' ? (round.targetMarks ?? 3) : null,
+      order: index + 1,
+      prize: round.prize.trim(),
+      description: round.description?.trim() || null,
+      photoDataUrl: round.photoDataUrl ?? null,
+      photoUpdatedAt: round.photoDataUrl ? new Date() : null,
+    }));
+  }
+
+  private toPrizeRoundWriteData(
+    round: UpdatePrizeRoundsRequest['rounds'][number],
+    order: number,
+  ) {
+    return {
+      label: round.label,
+      pattern: round.pattern as PrismaPrizePattern,
+      targetMarks:
+        round.pattern === 'marked_count' ? (round.targetMarks ?? 3) : null,
+      order,
+      prize: round.prize,
+      description: round.description?.trim() || null,
+      ...(round.removePhoto
+        ? {
+            photoDataUrl: null,
+            photoUpdatedAt: null,
+          }
+        : round.photoDataUrl
+          ? {
+              photoDataUrl: round.photoDataUrl,
+              photoUpdatedAt: new Date(),
+            }
+          : {}),
+    };
   }
 
   private async generateUniqueJoinCode(tx: Prisma.TransactionClient) {

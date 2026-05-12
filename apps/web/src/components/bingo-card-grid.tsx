@@ -1,4 +1,4 @@
-import type { BingoCellDto, PlayerCardView } from '@bingo/contracts';
+import type { BingoCellDto, BingoLetter, PlayerCardView } from '@bingo/contracts';
 import { GlassPanel } from '@bingo/ui';
 
 interface BingoCardGridProps {
@@ -8,6 +8,8 @@ interface BingoCardGridProps {
   onCellToggle?: (cell: BingoCellDto) => void;
 }
 
+const LETTERS: BingoLetter[] = ['B', 'I', 'N', 'G', 'O'];
+
 export function BingoCardGrid({
   card,
   isCellToggleable,
@@ -15,28 +17,27 @@ export function BingoCardGrid({
   onCellToggle,
 }: BingoCardGridProps) {
   return (
-    <GlassPanel className="space-y-4 rounded-[30px] p-4 md:p-5">
+    <GlassPanel className="space-y-4 rounded-[22px] p-4 md:p-5">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="m-0 text-[0.68rem] uppercase tracking-[0.22em] text-[var(--muted-text)]">
-            Cartela {card.serial}
-          </p>
+          <p className="premium-label m-0">Bingo Familiar Premium</p>
           <p className="m-0 mt-1 text-sm font-semibold text-[var(--text-color)]">
+            Cartela {card.serial} -{' '}
             {card.marksNeeded === 0
               ? 'Padrao completo'
-              : `Faltam ${card.marksNeeded} numero(s)`}
+              : `faltam ${card.marksNeeded} numero(s)`}
           </p>
         </div>
-        <div className="rounded-full bg-white/8 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-text)]">
+        <div className="rounded-[14px] border border-[var(--border-color)] bg-white/5 px-3 py-2 text-xs font-bold uppercase tracking-[0.16em] text-[var(--gold)]">
           {card.autoMark ? 'Auto' : 'Manual'}
         </div>
       </div>
 
-      <div className="grid grid-cols-5 gap-2">
-        {['B', 'I', 'N', 'G', 'O'].map((letter) => (
+      <div className="grid grid-cols-5 overflow-hidden rounded-[18px] border border-[var(--border-color)]">
+        {LETTERS.map((letter) => (
           <div
             key={letter}
-            className="rounded-2xl bg-white/8 py-3 text-center font-display text-sm font-bold tracking-[0.26em] text-[var(--text-color)]"
+            className={`bingo-letter-chip bingo-letter-${letter.toLowerCase()} flex min-h-[3rem] items-center justify-center font-display text-2xl font-black text-white`}
           >
             {letter}
           </div>
@@ -44,15 +45,13 @@ export function BingoCardGrid({
 
         {card.cells.flat().map((cell) => {
           const toggleable = Boolean(onCellToggle && isCellToggleable?.(cell));
-          const className = `rounded-[22px] border px-1 py-4 text-center ${
-            large ? 'min-h-[5.4rem] text-2xl' : 'min-h-[4.5rem] text-xl'
+          const className = `flex w-full items-center justify-center border-r border-b border-[rgba(228,180,95,0.18)] bg-[rgba(3,22,15,0.72)] px-1 text-center font-display font-black transition ${
+            large ? 'min-h-[4.6rem] text-2xl' : 'min-h-[4rem] text-xl'
           } ${
             cell.marked
-              ? 'border-transparent bg-[linear-gradient(135deg,rgba(255,122,89,0.85),rgba(89,255,208,0.85))] text-slate-950 shadow-[0_22px_40px_rgba(89,255,208,0.16)]'
-              : 'border-white/10 bg-white/5 text-[var(--text-color)]'
-          } flex w-full items-center justify-center font-display font-bold transition ${
-            toggleable ? 'cursor-pointer hover:scale-[1.02] hover:border-white/35' : ''
-          }`;
+              ? `${markedToneClass(cell)} text-white`
+              : 'text-[var(--text-color)]'
+          } ${toggleable ? 'cursor-pointer hover:bg-white/10' : ''}`;
 
           if (!card.autoMark && onCellToggle) {
             return (
@@ -78,4 +77,24 @@ export function BingoCardGrid({
       </div>
     </GlassPanel>
   );
+}
+
+function markedToneClass(cell: BingoCellDto) {
+  if (cell.value === 'FREE') {
+    return 'bg-[radial-gradient(circle,rgba(228,180,95,0.76),rgba(101,71,14,0.65))] shadow-[inset_0_0_20px_rgba(228,180,95,0.35),0_0_20px_rgba(228,180,95,0.25)]';
+  }
+
+  if (cell.letter === 'G') {
+    return 'bg-[rgba(200,108,255,0.16)] shadow-[inset_0_0_18px_rgba(200,108,255,0.4),0_0_18px_rgba(200,108,255,0.28)]';
+  }
+
+  if (cell.letter === 'N') {
+    return 'bg-[rgba(105,242,131,0.16)] shadow-[inset_0_0_18px_rgba(105,242,131,0.38),0_0_18px_rgba(105,242,131,0.22)]';
+  }
+
+  if (cell.letter === 'I') {
+    return 'bg-[rgba(228,180,95,0.16)] shadow-[inset_0_0_18px_rgba(228,180,95,0.38),0_0_18px_rgba(228,180,95,0.22)]';
+  }
+
+  return 'bg-[rgba(255,98,87,0.14)] shadow-[inset_0_0_18px_rgba(255,98,87,0.34),0_0_18px_rgba(255,98,87,0.2)]';
 }

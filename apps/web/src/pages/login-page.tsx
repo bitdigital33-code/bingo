@@ -66,7 +66,7 @@ export function LoginPage() {
             O painel cinematografico para o bingo mais divertido da sua festa.
           </h1>
           <p className="m-0 mt-6 max-w-2xl text-lg leading-8 text-[var(--muted-text)]">
-            Controle salas, telão, cartelas digitais, quase-bingo, narrador automático e celebrações
+            Controle salas, telao, cartelas digitais, quase-bingo, narrador automatico e celebracoes
             em tempo real com cara de SaaS premium pronto para vender assinaturas.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
@@ -74,7 +74,7 @@ export function LoginPage() {
               Globo fisico + painel inteligente
             </div>
             <div className="rounded-full bg-white/8 px-4 py-3 text-sm font-semibold text-[var(--text-color)]">
-              Mobile, tablet, telão e Smart TV
+              Mobile, tablet, telao e Smart TV
             </div>
             <div className="rounded-full bg-white/8 px-4 py-3 text-sm font-semibold text-[var(--text-color)]">
               Multi-tenant sem billing no v1

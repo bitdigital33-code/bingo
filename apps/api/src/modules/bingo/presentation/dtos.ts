@@ -76,6 +76,39 @@ export class InviteMemberDto {
   password?: string;
 }
 
+export class CreateRoomPrizeRoundDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(40)
+  label!: string;
+
+  @IsEnum(['single_line', 'double_line', 'full_house', 'marked_count'] as const)
+  pattern!: PrizePattern;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(24)
+  targetMarks?: number;
+
+  @IsString()
+  @MinLength(2)
+  @MaxLength(120)
+  prize!: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(220)
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2_200_000)
+  photoDataUrl?: string;
+}
+
 export class CreateRoomDto {
   @IsString()
   @MinLength(3)
@@ -95,6 +128,13 @@ export class CreateRoomDto {
 
   @IsBoolean()
   allowManualMark!: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => CreateRoomPrizeRoundDto)
+  prizeRounds?: CreateRoomPrizeRoundDto[];
 }
 
 export class UpdateRoomDto {
@@ -224,6 +264,21 @@ export class UpdatePrizeRoundDto {
   @MinLength(2)
   @MaxLength(120)
   prize!: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(220)
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2_200_000)
+  photoDataUrl?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  removePhoto?: boolean;
 }
 
 export class UpdatePrizeRoundsDto {

@@ -6,7 +6,7 @@ import type {
   DrawEventDto,
   MatchStatus,
   MemberRole,
-  PrizeRoundConfig,
+  PrizePattern,
   StageMomentKey,
   ThemeKey,
   WinClaimDto,
@@ -88,6 +88,19 @@ export interface StoredAuditLog extends AuditLogDto {
   actorType: AuditActorType;
 }
 
+export interface StoredPrizeRound {
+  id: string;
+  label: string;
+  pattern: PrizePattern;
+  targetMarks?: number;
+  order: number;
+  prize: string;
+  description?: string;
+  photoDataUrl?: string;
+  photoUpdatedAt?: string;
+  completedAt?: string;
+}
+
 export interface StoredAdminHistory {
   items: AdminHistoryItemDto[];
   auditLogs: StoredAuditLog[];
@@ -138,7 +151,7 @@ export interface StoredMatch {
   stageMomentVisible: boolean;
   recentDrawsVisible: boolean;
   tvResetAt?: string;
-  prizeRounds: PrizeRoundConfig[];
+  prizeRounds: StoredPrizeRound[];
   drawEvents: StoredDrawEvent[];
 }
 

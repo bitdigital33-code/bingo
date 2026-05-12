@@ -52,6 +52,8 @@ export interface PrizeRoundConfig {
   targetMarks?: number;
   order: number;
   prize: string;
+  description?: string;
+  hasPhoto?: boolean;
   completedAt?: string;
 }
 
@@ -63,6 +65,9 @@ export interface PrizeShowcaseDto {
   targetMarks?: number;
   order: number;
   prize: string;
+  description?: string;
+  hasPhoto?: boolean;
+  photoDataUrl?: string;
   completedAt?: string;
 }
 
@@ -308,12 +313,22 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface CreatePrizeRoundRequest {
+  label: string;
+  pattern: PrizePattern;
+  targetMarks?: number;
+  prize: string;
+  description?: string;
+  photoDataUrl?: string;
+}
+
 export interface CreateRoomRequest {
   name: string;
   theme: ThemeKey;
   maxCardsPerPlayer: number;
   allowAutoMark: boolean;
   allowManualMark: boolean;
+  prizeRounds?: CreatePrizeRoundRequest[];
 }
 
 export interface DeleteRoomResponseDto {
@@ -372,6 +387,9 @@ export interface UpdatePrizeRoundRequest {
   pattern: PrizePattern;
   targetMarks?: number;
   prize: string;
+  description?: string;
+  photoDataUrl?: string;
+  removePhoto?: boolean;
 }
 
 export interface UpdatePrizeRoundsRequest {

@@ -9,6 +9,7 @@ import { JwtService } from '@nestjs/jwt';
 import type {
   AdminHistoryResponseDto,
   AuthResponseDto,
+  CreatePrizeRoundRequest,
   CreateRoomRequest,
   CreateTenantRequest,
   DeleteRoomResponseDto,
@@ -24,6 +25,7 @@ import type {
   RoomSnapshot,
   StageMomentRequest,
   TvRecentDrawsRequest,
+  UpdatePrizeRoundRequest,
   UpdatePrizeRoundsRequest,
   UpdatePlayerRequest,
   VerifyPrintableCardRequest,
@@ -158,6 +160,7 @@ export class BingoFacadeService {
     user: StoredUser,
     payload: CreateRoomRequest,
   ): Promise<MatchCommandResponse> {
+    this.validateInitialPrizeRounds(payload.prizeRounds);
     const room = await this.store.createRoom(user.tenantId, payload);
     await this.auditAdmin(user, {
       room,
@@ -170,6 +173,7 @@ export class BingoFacadeService {
         roomCode: room.joinCode,
         theme: room.theme,
         maxCardsPerPlayer: room.maxCardsPerPlayer,
+        prizeRounds: this.toPrizeRoundAuditPayload(payload.prizeRounds),
       },
     });
     return {
@@ -302,14 +306,7 @@ export class BingoFacadeService {
           'Rodada de premio invalida para esta sala.',
         );
       }
-      if (
-        round.pattern === 'marked_count' &&
-        (!round.targetMarks || round.targetMarks < 1)
-      ) {
-        throw new BadRequestException(
-          'Informe quantas bolas valem para este premio.',
-        );
-      }
+      this.validatePrizeRoundInput(round);
     }
 
     await this.store.updatePrizeRounds(room.matchId, payload);
@@ -321,11 +318,90 @@ export class BingoFacadeService {
       entityType: 'match',
       entityId: room.matchId,
       payload: {
-        rounds: payload.rounds,
+        rounds: this.toPrizeRoundAuditPayload(payload.rounds),
       },
     });
 
     return this.broadcastRoom(room, 'prize.rounds.updated');
+  }
+
+  private validateInitialPrizeRounds(
+    rounds: CreateRoomRequest['prizeRounds'],
+  ) {
+    if (!rounds?.length) {
+      return;
+    }
+
+    for (const round of rounds) {
+      this.validatePrizeRoundInput(round);
+    }
+  }
+
+  private validatePrizeRoundInput(
+    round: Pick<
+      UpdatePrizeRoundRequest,
+      'pattern' | 'targetMarks' | 'description' | 'photoDataUrl' | 'removePhoto'
+    >,
+  ) {
+    if (
+      round.pattern === 'marked_count' &&
+      (!round.targetMarks || round.targetMarks < 1)
+    ) {
+      throw new BadRequestException(
+        'Informe quantas bolas valem para este premio.',
+      );
+    }
+
+    if (round.description !== undefined && round.description.trim().length === 1) {
+      throw new BadRequestException(
+        'A breve descricao do premio precisa ter pelo menos 2 caracteres.',
+      );
+    }
+
+    if (round.photoDataUrl && round.removePhoto) {
+      throw new BadRequestException(
+        'Envie uma nova foto do premio ou remova a atual, mas nao os dois ao mesmo tempo.',
+      );
+    }
+
+    if (round.photoDataUrl) {
+      this.validatePrizePhoto(round.photoDataUrl);
+    }
+  }
+
+  private validatePrizePhoto(photoDataUrl: string) {
+    const normalized = photoDataUrl.trim();
+    const match = normalized.match(
+      /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/,
+    );
+
+    if (!match) {
+      throw new BadRequestException(
+        'Envie a foto do premio em JPG, PNG ou WEBP.',
+      );
+    }
+
+    const estimatedBytes = Math.ceil((match[2].length * 3) / 4);
+    if (estimatedBytes > 1_500_000) {
+      throw new BadRequestException(
+        'A foto do premio precisa ter ate 1,5 MB apos a compressao.',
+      );
+    }
+  }
+
+  private toPrizeRoundAuditPayload(
+    rounds?: Array<CreatePrizeRoundRequest | UpdatePrizeRoundRequest>,
+  ) {
+    return rounds?.map((round) => ({
+      id: 'id' in round ? round.id : undefined,
+      label: round.label,
+      pattern: round.pattern,
+      targetMarks: round.targetMarks,
+      prize: round.prize,
+      description: round.description,
+      hasPhotoUpload: Boolean(round.photoDataUrl),
+      removePhoto: 'removePhoto' in round ? round.removePhoto : undefined,
+    }));
   }
 
   async setPrizeShowcase(
@@ -367,6 +443,8 @@ export class BingoFacadeService {
         roundId: round?.id,
         label: round?.label,
         prize: round?.prize,
+        description: round?.description,
+        hasPhoto: Boolean(round?.photoDataUrl),
       },
     });
 
